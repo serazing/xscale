@@ -5,6 +5,7 @@ from __future__ import absolute_import, division, print_function
 
 from . import filtering
 from . import signals
+from . import spectral
 
 from ._version import get_versions
 versions = get_versions()

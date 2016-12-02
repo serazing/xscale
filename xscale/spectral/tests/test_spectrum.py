@@ -1,10 +1,9 @@
 # Python 2/3 compatibility
 from __future__ import absolute_import, division, print_function
 
-import xscale.spectral as sp
+import xscale.spectral.spectrum as sp
 import xarray as xr
 import numpy as np
-
 
 # TODO: Check the coordinates
 

@@ -14,7 +14,7 @@ extras_require = {
 }
 extras_require['complete'] = sorted(set(sum(extras_require.values(), [])))
 
-packages = ['xscale', 'xscale.filtering', 'xscale.pca', 'xscale.signals', 'xscale.plot']
+packages = ['xscale', 'xscale.filtering', 'xscale.signals', 'xscale.spectral', 'xscale.plot']
 
 tests = [p + '.tests' for p in packages]
 

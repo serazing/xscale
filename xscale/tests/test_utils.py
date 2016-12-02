@@ -12,7 +12,9 @@ from xscale import utils
 # Testing array
 shape = (50, 30, 40)
 dims = ('x', 'y', 'z')
-array = xr.DataArray(np.random.random(shape), dims=dims)
+coords = {'x': np.pi * np.linspace(1, 50), 'y': 10 ** np.linspace(0.01, 0.5, 30)}
+array = xr.DataArray(np.random.random(shape), dims=dims, coords=coords)
+
 
 def test_infer_n_and_dims():
 	# Case n and dims are None -> returns all dimensions and all dimensions
@@ -30,8 +32,6 @@ def test_infer_n_and_dims():
 	assert utils.infer_n_and_dims(array, 8, ['y', 'x']) == ((8, 8), ['y', 'x'])
 	# Case n is an iterable and dims is an iterable
 	assert utils.infer_n_and_dims(array, (8, 15), ['y', 'z']) == ((8, 15), ['y', 'z'])
-	# Case n is an iterable and dims is an iterable
-	assert utils.infer_n_and_dims(array, (8, 15), ['y', 'z']) == ((8, 15), ['y', 'z'])
 	# Test exceptions
 	# Case n is an iterable and dims is not an iterable
 	with pytest.raises(TypeError, message="Expecting TypeError"):
@@ -42,3 +42,12 @@ def test_infer_n_and_dims():
 	# Case n is not valid
 	with pytest.raises(TypeError, message="Expecting TypeError"):
 		utils.infer_n_and_dims(array, '8', ['y'])
+	# Case n is not valid
+	with pytest.raises(TypeError, message="Expecting TypeError"):
+		utils.infer_n_and_dims(array, 8, 14)
+
+
+def test_get_dx():
+	assert utils.get_dx(array, 'x') == np.pi
+	with pytest.raises(Warning):
+		utils.get_dx(array, 'y')

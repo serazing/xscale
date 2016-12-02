@@ -8,7 +8,8 @@ import dask.array as da
 import pandas as pd
 # Internals
 import copy
-
+# Xscale
+from .. import utils
 
 def psd(array, dim=None, detrend=None, tappering=None, shift=False, chunks=None):
 	"""
@@ -34,7 +35,7 @@ def psd(array, dim=None, detrend=None, tappering=None, shift=False, chunks=None)
 	return psd
 
 
-def spectrum(array, dim=None, detrend=None, tappering=None, shift=False, chunks=None):
+def spectrum(array, nfft=None, dim=None, detrend=None, tappering=None, shift=False, chunks=None):
 	"""
 	Compute the spectrum on several dimensions of xarray.DataArray objects using the Fast Fourrier Transform
 	parrallelized with dask.array.
@@ -65,15 +66,14 @@ def spectrum(array, dim=None, detrend=None, tappering=None, shift=False, chunks=
 	dimension, which is faster. Then the transform over the remaining
 	dimensions are computed with the classic fft.
 	"""
-	if dim is None:
-		dim = array.dims
+	new_n, new_dim = utils.infer_n_and_dims(array, nfft, dim)
 	if tappering is not None:
 		# TODO: implement the tappering function
 		pass
 	else:
 		if detrend is 'zeromean':
 			# TODO: remove the mean here
-			preproc_array = array - array.mean(dim=dim)
+			preproc_array = array - array.mean(dim=new_dim)
 		elif detrend is 'linear':
 			# TODO: implement the detrending function
 			# preproc_array = _detrend(array, dims)
@@ -82,7 +82,7 @@ def spectrum(array, dim=None, detrend=None, tappering=None, shift=False, chunks=
 			preproc_array = array
 	if tappering is not None:
 		pass
-	spectrum, spectrum_coords, spectrum_dims = _fft(preproc_array, dim, shift=shift, chunks=chunks)
+	spectrum, spectrum_coords, spectrum_dims = _fft(preproc_array, new_dim, shift=shift, chunks=chunks)
 	return xr.DataArray(spectrum, coords=spectrum_coords, dims=spectrum_dims, name='spectrum')
 
 
@@ -105,16 +105,8 @@ def _fft(array, dim, shift=False, chunks=None):
 		if di in array.dims:
 			axis_num = array.get_axis_num(di)
 			nfft = shape[axis_num]
-
 			# Compute the resolution of the different dimension
-			delta = np.diff(array[di])
-			if pd.core.common.is_timedelta64_dtype(delta):
-				# Convert to seconds so we get hertz
-				delta = delta.astype('timedelta64[s]').astype('f8')
-			if not np.allclose(delta, delta[0]):
-				raise Warning, "Coordinate %s is not evenly spaced" % di
-			dx = delta[0]
-
+			dx = utils.get_dx(array, di)
 			#FFT part
 			if first and not np.iscomplexobj(spectrum):
 				# The first FFT is performed on real numbers: the use of rfft is faster

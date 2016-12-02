@@ -11,12 +11,13 @@ window_list = linearfilters._scipy_window_dict.keys() + linearfilters._local_win
 signal_xyt = signaltest_xyt1()
 signal_xyt_wth_coast = signaltest_xyt1(coastlines=True)
 
+
 def test_init_window():
 	assert signal_xyt.win
 
+
 def test_set_all_windows1d():
-	""" Test the setting of all the available 1D window
-	"""
+	""" Test the setting of all the available 1D window """
 	win1d = signal_xyt.win
 	for window_name in window_list:
 		win1d.set(window_name=window_name, dims=['time'], n=[24])
@@ -29,19 +30,18 @@ def test_set_all_window2d():
 
 
 def test_wrong_window_name():
-	""" Test the exception if the window_name is not recognize
-	"""
+	""" Test the exception if the window_name is not recognize """
 	win = signal_xyt.win
 	with pytest.raises(ValueError, message="Expecting ValueError"):
 		win.set(window_name='circlecar')
 
 
 def test_wrong_dimension():
-	"""Test if an exception is returned if the dimension is not in the associated array
-	"""
+	"""Test if an exception is returned if the dimension is not in the associated array """
 	win = signal_xyt.win
 	with pytest.raises(ValueError, message="Expecting ValueError"):
 		win.set(dims=['z'])
+
 
 def test_window_plot1d():
 	win = signal_xyt.win

@@ -27,7 +27,7 @@ from ..plot.plot1d import spectrum_plot
 # ------------------------------------------------------------------------------
 def _lanczos(n, fc=0.02):
 	"""
-	Compute the coefficients of a Lanczos window
+	Compute the coefficients of a Lanczos window. For private use only.
 
 	Parameters
 	----------
@@ -41,13 +41,8 @@ def _lanczos(n, fc=0.02):
 	w : ndarray
 		The weights associated to the boxcar window
 	"""
-	if not isinstance(n, int):
-		try:
-			n = int(n)
-		except:
-			TypeError, "n must be an integer"
 	if not n % 2 == 1:
-		raise ValueError, "n must an odd integer"
+		raise ValueError("n must an odd integer")
 	k = np.arange(- n / 2 + 1, n / 2 + 1)
 	# k = np.arange(0, n + 1)
 	# w = (np.sin(2 * pi * fc * k) / (pi * k) *
@@ -86,33 +81,6 @@ _local_window_dict = {'lanczos': _lanczos, 'lcz': _lanczos}
 # First part : Definition of window classes for filtering
 # ------------------------------------------------------------------------------
 
-def _infer_n_and_dims(n, dims):
-	"""Logic for setting the window properties"""
-	#TODO: Finish this function
-	if utils.is_dict_like(n):
-		# Dictionary case
-		new_n = n.values()
-		new_dims = n.keys()
-	elif utils.is_sequence(n):
-		# Iterable case
-		raise NotImplementedError
-	elif isinstance(n, int):
-		# Scalar case
-		if utils.is_sequence(dims):
-			new_n = []
-			new_dims = []
-			for dim in dims:
-				new_n.append(n)
-				new_dims.append(dim)
-		elif utils.is_scalar(dims):
-			new_n = [n]
-			new_dims = [dims]
-		else:
-			raise TypeError
-	else:
-		raise TypeError
-	return new_n, new_dims
-
 #@xr.register_dataset_accessor('win')
 @xr.register_dataarray_accessor('win')
 class Window(object):
@@ -127,10 +95,12 @@ class Window(object):
 		self.obj = xarray_obj
 		self.name = 'boxcar'
 		self.dims = None
-		self.order = 2
+		self.n = None
+		self.span = None
 		self.coefficients = 1.
 		self.coords = []
 		self._depth = dict()
+		self.dx = dict()
 
 	def __repr__(self):
 		"""
@@ -141,7 +111,7 @@ class Window(object):
 		         for k in self._attributes if
 		         getattr(self, k, None) is not None]
 		return "{klass} [{attrs}]".format(klass=self.__class__.__name__,
-		                                  attrs=','.join(attrs))
+		                                  attrs=', '.join(attrs))
 
 	def set(self, window_name=None, n=None, dims=None, chunks=None, **kargs):
 		"""
@@ -171,48 +141,47 @@ class Window(object):
 			Notes below)
 
 		"""
-		self.obj = self._obj.chunk(chunks=chunks)
+		# Check the compatiblity of the window name
 		if window_name is not None:
 			self.name = window_name
-		if dims is None and self.dims is None:
-			dims = self._obj.dims[0]
-		if isinstance(dims, str):
-			self.dims = [dims, ]
-		else:
-			self.dims = dims
-		# Check if the dimensions of the window correspond to dimensions of the data
-		for dim in self.dims:
-			if not dim in self._obj.dims:
-				raise ValueError, ("Dimension " + dim + " does not exist in the data")
 		if window_name in _scipy_window_dict:
 			window_function = _scipy_window_dict[window_name]
 		elif window_name in _local_window_dict:
 			window_function = _local_window_dict[window_name]
 		else:
-			raise ValueError, "This type of window is not supported"
-		self.order = dict()
+			raise ValueError("This type of window is not supported")
+		# Check and interpret n and dims arguments
+		self.n, self.dims = utils.infer_n_and_dims(self._obj, n, dims)
+		# Set chunks
+		self.obj = self._obj.chunk(chunks=chunks)
+		#TODO: Test the size of the chunks compared to n
+		# Reset attributes
+		self.span = dict()
+		self.dx = dict()
 		self.coefficients = 1.
 		self.coords = []
-		for weight_numbers, dimension_name in zip(n, dims):
-			self.order[dimension_name] = weight_numbers
-			# Compute the coefficients associated to the window using the right
-			# function
-			coefficients1d = window_function(2 * weight_numbers + 1, **kargs)
-			# Normalize the coefficients
-			coefficients1d /= np.sum(coefficients1d)
-			self.coefficients = np.outer(self.coefficients, coefficients1d)
-			#TODO: Try to add the rotational convention using meshgrid, in complement to the outer product
-			#TODO: check the order of dimension of the kernel compared to the DataArray/DataSet objects
-		self.coefficients = self.coefficients.squeeze()
-		for dim in self.obj.dims:
-			axis_dim = self.obj.get_axis_num(dim)
-			if dim not in self.dims:
-				self.coefficients = np.expand_dims(self.coefficients, axis=axis_dim)
+		for nbw, di in zip(self.n, self.dims):
+			self.span[di] = nbw
+		# Build the multi-dimensional window: the hard part
+		for di in self.obj.dims:
+			axis_num = self.obj.get_axis_num(di)
+			if di in self.dims:
+				self._depth[axis_num] = self.span[di]
+				self.dx[di] = utils.get_dx(self.obj, di)
+				# Compute the coefficients associated to the window using the right
+				# function
+				coefficients1d = window_function(2 * self.span[di] + 1, **kargs)
+				# Normalize the coefficients
+				coefficients1d /= np.sum(coefficients1d)
+				self.coefficients = np.outer(self.coefficients, coefficients1d)
+				# TODO: Try to add the rotational convention using meshgrid, in complement to the outer product
+				# TODO: check the order of dimension of the kernel compared to the DataArray/DataSet objects
+				self.coefficients = self.coefficients.squeeze()
 			else:
-				self._depth[self.obj.get_axis_num(dim)] = self.order[dim]
-			self.coords.append(np.asarray(self.obj.coords[dim]))
+				self.coefficients = np.expand_dims(self.coefficients, axis=axis_num)
 
-	def apply(self, mode='reflect', weights=None, compute=True):
+
+	def convolve(self, mode='reflect', weights=None, compute=True):
 		"""Convolve the current window with the data
 
 		Parameters
@@ -221,11 +190,14 @@ class Window(object):
 
 		weights :
 
-		compute : bool,
+		compute : bool, optional
+			If True, the computation is performed after the dask graph have been made. If False, only the dask graph is
+			made is the computation will be performed later on. The latter allows the integration into a larger dask
+			graph, which could include other computational steps.
 
 		Returns
 		-------
-		res : xarray.DataArray or DataSet
+		res : xarray.DataArray
 			Return the filtered  the low-passed filtered
 		"""
 		# Check if the data has more dimensions than the window and add
@@ -245,9 +217,36 @@ class Window(object):
 				out = data.compute()
 		else:
 			out = data
-		res = xr.DataArray(out, dims=self.obj.dims, coords=self.coords, name=self.obj.name) / weights
+		res = xr.DataArray(out, dims=self.obj.dims, coords=self.obj.coords, name=self.obj.name) / weights
 
 		return res.where(mask == 1)
+
+
+	def tapper(self, overlap=0.):
+		"""
+		Do a tappering of the data using the current window
+
+		Parameters
+		----------
+		overlap:
+
+		Returns
+		-------
+		data_tappered : dask array
+			The data tappered y the window
+
+		Notes
+		-----
+		"""
+		# TODO: Write the function
+		raise NotImplementedError
+		if compute:
+			with ProgressBar():
+				out = data.compute()
+		else:
+			out = data
+		res = xr.DataArray(out, dims=self.obj.dims, coords=self.obj.coords, name=self.obj.name)
+		return res
 
 	def boundary_weights(self, mode='reflect', drop_dims=None):
 		"""
@@ -264,13 +263,9 @@ class Window(object):
 		-------
 		"""
 		mask = self.obj.notnull()
-		new_dims = copy.copy(self.obj.dims)
-		new_coords = copy.copy(self.coords)
-		for dim in drop_dims:
-			#TODO: Make the function work
-			mask = mask.isel({dim:0})
-			del(new_dims[dim])
-			del(new_coords[dim])
+		new_dims = [di for di in self.obj.dims if di not in drop_dims]
+		new_coords = {di:self.obj[di] for di in drop_dims if di not in drop_dims}
+		mask = mask.isel(**{di:0 for di in drop_dims})
 		weights = im.convolve(mask.astype(float), self.coefficients, mode=mode)
 		res = xr.DataArray(weights, dims=new_dims, coords=new_coords, name='boundary weights')
 		return res.where(mask == 1)
@@ -305,11 +300,13 @@ class Window(object):
 			plt.tight_layout()
 		elif nod == 2:
 			# Compute 2D spectral response
+			nx = self.n[0]
+			ny = self.n[1]
 			spectrum = (np.fft.fft2(self.coefficients.squeeze(), [1024, 1024]) /
 			            (np.size(self.coefficients.squeeze()) / 2.0))
 			response = np.abs(np.fft.fftshift(spectrum / abs(spectrum).max()))
-			fx = np.linspace(-0.5, 0.5, 1024)
-			fy = np.linspace(-0.5, 0.5, 1024)
+			fx = np.fft.fftshift(np.fft.fftfreq(1024, self.dx[self.dims[0]]))
+			fy = np.fft.fftshift(np.fft.fftfreq(1024, self.dx[self.dims[0]]))
 			f2d = np.meshgrid(fy, fx)
 			if  format == 'landscape':
 				gs = gridspec.GridSpec(2, 4, width_ratios=[2, 1, 2, 1], height_ratios=[1, 2])
@@ -357,32 +354,3 @@ class Window(object):
 			plt.tight_layout()
 		else:
 			raise ValueError, "This number of dimension is not supported by the plot function"
-
-
-def tapper(data, window_name, dims, **kargs):
-	"""
-	Do a tappering of the data using any window among the available windows (
-	see the notes below)
-
-	Parameters
-	----------
-	data : Datarray
-		The data on which apply the window function
-	window_name : string
-		The name of the window to use
-	dims : string or tuple of string
-		Dimensions of the window
-	keywords arguments:
-		Any arguments relative to the additional parameters of the window
-		function (see the notes below)
-
-	Returns
-	-------
-	data_tappered : dask array
-		The data tappered y the window
-
-	Notes
-	-----
-	"""
-	# TODO: Write the function using the Window class
-	pass
