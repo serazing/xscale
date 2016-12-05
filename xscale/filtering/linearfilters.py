@@ -5,8 +5,10 @@ xarray.DataArray and xarray.Dataset objects.
 from __future__ import absolute_import, division, print_function
 # Internal
 import copy
+from collections import Iterable
 # Numpy and scipy
 import numpy as np
+import scipy.signal as sig
 import scipy.signal.windows as win
 import scipy.ndimage as im
 import scipy.special as spec
@@ -53,29 +55,7 @@ def _lanczos(n, fc=0.02):
 	w[n / 2] = 2. * fc
 	return w
 
-
-# Define a list of available windows
-_scipy_window_dict = win._win_equiv
-# Remove scipy windows that are not supported yet
-del(_scipy_window_dict['dpss'])
-del(_scipy_window_dict['dss'])
-del(_scipy_window_dict['ggs'])
-del(_scipy_window_dict['gss'])
-del(_scipy_window_dict['optimal'])
-del(_scipy_window_dict['slepian'])
-del(_scipy_window_dict['slep'])
-del(_scipy_window_dict['gaussian'])
-del(_scipy_window_dict['gauss'])
-del(_scipy_window_dict['general_gaussian'])
-del(_scipy_window_dict['general_gauss'])
-del(_scipy_window_dict['general gaussian'])
-del(_scipy_window_dict['general gauss'])
-del(_scipy_window_dict['cheb'])
-del(_scipy_window_dict['chebwin'])
-del(_scipy_window_dict['kaiser'])
-del(_scipy_window_dict['ksr'])
 _local_window_dict = {'lanczos': _lanczos, 'lcz': _lanczos}
-
 
 # ------------------------------------------------------------------------------
 # First part : Definition of window classes for filtering
@@ -88,19 +68,20 @@ class Window(object):
 	Class for all different type of windows
 	"""
 
-	_attributes = ['name', 'dims', 'order']
+	_attributes = ['order', 'cutoff', 'window']
 
 	def __init__(self, xarray_obj):
 		self._obj = xarray_obj
 		self.obj = xarray_obj
-		self.name = 'boxcar'
-		self.dims = None
 		self.n = None
-		self.span = None
+		self.dims = None
+		self.cutoff = None
+		self.window = None
+		self.order = None
 		self.coefficients = 1.
 		self.coords = []
 		self._depth = dict()
-		self.dx = dict()
+		self.fnyq = dict()
 
 	def __repr__(self):
 		"""
@@ -113,11 +94,11 @@ class Window(object):
 		return "{klass} [{attrs}]".format(klass=self.__class__.__name__,
 		                                  attrs=', '.join(attrs))
 
-	def set(self, window_name=None, n=None, dims=None, chunks=None, **kargs):
+	def set(self, n=None, dims=None, cutoff=None, window='boxcar', chunks=None):
 		"""
 		Set the different properties of the current window
 
-        If the variable associated to the window objetc is a non-dask array,
+        If the variable associated to the window object is a non-dask array,
         it will be converted to dask array. If it's a dask array, it will be
         rechunked to the given chunksizes.
 
@@ -127,52 +108,59 @@ class Window(object):
 
 		Parameters
 		----------
-		window_name : str
-			Name of the window among the available windows (see Notes below)
-		n : int, sequence or dict
-			Half-size of the window
-		dims : str or sequence, optional
-			Name of the dimension of the window. If not precised, the first dimension
-			of the data is taken by default.
-        chunks : int, tuple or dict, optional
-            Chunk sizes along each dimension, e.g., ``5``, ``(5, 5)`` or ``{'x': 5, 'y': 5}``.
-		keywords
-			Additional parameters specific to some windows functions (see the
-			Notes below)
+		n : int, sequence or dict, optional
+			The window order over the dimensions specified through a dictionary or through the ``dims`` parameters. If
+			``n`` is ``None``, the window order is set to the total size of the corresponding dimensions according to
+			the ``dims`` parameters
 
+		dims : str or sequence, optional
+			Names of the dimension associated to the window. If ``dims`` is  None, all the dimensions are taken.
+
+		cutoff : float, sequence or dict, optional
+			The window cutoff over the dimensions specified through a dictionary, or through the ``dims``
+			parameters. If `cutoff`` is ``None``, the cutoff parameters will be not used in the design the window.
+
+		window : string, tuple of string and parameter values, or dict
+			Desired window to use. See scipy.signal.get_window for a list of windows and required parameters.
+
+        chunks : int, tuple or dict, optional
+            Chunk sizes along each dimension, e.g., ``5``, ``(5, 5)`` or ``{'x': 5, 'y': 5}``
 		"""
-		# Check the compatiblity of the window name
-		if window_name is not None:
-			self.name = window_name
-		if window_name in _scipy_window_dict:
-			window_function = _scipy_window_dict[window_name]
-		elif window_name in _local_window_dict:
-			window_function = _local_window_dict[window_name]
-		else:
-			raise ValueError("This type of window is not supported")
-		# Check and interpret n and dims arguments
+
+		# Check and interpret n and dims parameters
 		self.n, self.dims = utils.infer_n_and_dims(self._obj, n, dims)
-		# Set chunks
+		self.order = {di: nbw for nbw, di in zip(self.n, self.dims)}
+		# Check and interpret cutoff parameter
+		self.cutoff = _infer_arg(cutoff, self.dims)
+		# Check and interpret cutoff parameter
+		self.window = _infer_arg(window, self.dims, default_value='boxcar')
+		# Check and interpret the window parameter
 		self.obj = self._obj.chunk(chunks=chunks)
-		#TODO: Test the size of the chunks compared to n
+
 		# Reset attributes
-		self.span = dict()
+		self.fnyq = dict()
 		self.dx = dict()
 		self.coefficients = 1.
-		self.coords = []
-		for nbw, di in zip(self.n, self.dims):
-			self.span[di] = nbw
+
+		# TODO: Test the size of the chunks compared to n
+
 		# Build the multi-dimensional window: the hard part
 		for di in self.obj.dims:
 			axis_num = self.obj.get_axis_num(di)
 			if di in self.dims:
-				self._depth[axis_num] = self.span[di]
-				self.dx[di] = utils.get_dx(self.obj, di)
-				# Compute the coefficients associated to the window using the right
-				# function
-				coefficients1d = window_function(2 * self.span[di] + 1, **kargs)
+				self._depth[axis_num] = self.order[di] % 2
+				dx = utils.get_dx(self.obj, di)
+				self.dx[di] = dx
+				self.fnyq[di] = 1. / (2. * dx)
+				# Compute the coefficients associated to the window using scipy functions
+				if self.cutoff[di] is None:
+					# Use get_window if the cutoff is undefined
+					coefficients1d = sig.get_window(self.window[di], self.order[di])
+				else:
+					# Use firwin if the cutoff is defined
+					coefficients1d = sig.firwin(self.order[di], self.cutoff[di], window=self.window[di],
+					                            nyq=self.fnyq[di])
 				# Normalize the coefficients
-				coefficients1d /= np.sum(coefficients1d)
 				self.coefficients = np.outer(self.coefficients, coefficients1d)
 				# TODO: Try to add the rotational convention using meshgrid, in complement to the outer product
 				# TODO: check the order of dimension of the kernel compared to the DataArray/DataSet objects
@@ -202,16 +190,17 @@ class Window(object):
 		"""
 		# Check if the data has more dimensions than the window and add
 		# extra-dimensions to the window if it is the case
+		coeffs = self.coefficients / np.sum(self.coefficients)
 		mask = self.obj.notnull()
 		if weights is None:
-			weights = im.convolve(mask.astype(float), self.coefficients, mode=mode)
+			weights = im.convolve(mask.astype(float), coeffs, mode=mode)
 		filled_data = self.obj.fillna(0.).data
 
-		def convolve(x):
-			xf = im.convolve(x, self.coefficients, mode=mode)
+		def conv(x):
+			xf = im.convolve(x, coeffs, mode=mode)
 			return xf
 
-		data = filled_data.map_overlap(convolve, depth=self._depth, boundary=mode, trim=True)
+		data = filled_data.map_overlap(conv, depth=self._depth, boundary=mode, trim=True)
 		if compute:
 			with ProgressBar():
 				out = data.compute()
@@ -354,3 +343,30 @@ class Window(object):
 			plt.tight_layout()
 		else:
 			raise ValueError, "This number of dimension is not supported by the plot function"
+
+
+def _infer_arg(arg, dims, default_value=None):
+	"""Private function for inferring the cutoff dictionary"""
+	new_arg = dict()
+	if arg is None:
+		new_arg = {di: default_value for di in dims}
+	elif utils.is_scalar(arg):
+		new_arg = {di: arg for di in dims}
+	elif utils.is_dict_like(arg):
+		for di in dims:
+			try:
+				new_arg[di] = arg[di]
+			except:
+				new_arg[di] = default_value
+	elif isinstance(arg, Iterable) and not isinstance(arg, basestring):
+		if len(dims) == 1:
+			new_arg[dims[0]] = arg
+		else:
+			for i, di in enumerate(dims):
+				try:
+					new_arg[di] = arg[i]
+				except:
+					new_arg[di] = default_value
+	else:
+		raise TypeError("This type of option is not supported for the second argument")
+	return new_arg
