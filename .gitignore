@@ -1,6 +1,17 @@
 .cache/
+.idea/
 build/
 dist/
 
+*.swp
+
+# Documentation
+doc/_build
+doc/generated
+
+# Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]
+
+*.nc
+xscale.egg-info/

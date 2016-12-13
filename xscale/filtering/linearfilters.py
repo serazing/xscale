@@ -62,7 +62,7 @@ _local_window_dict = {'lanczos': _lanczos, 'lcz': _lanczos}
 # ------------------------------------------------------------------------------
 
 #@xr.register_dataset_accessor('win')
-@xr.register_dataarray_accessor('win')
+@xr.register_dataarray_accessor('window')
 class Window(object):
 	"""
 	Class for all different type of windows
@@ -141,6 +141,7 @@ class Window(object):
 		self.fnyq = dict()
 		self.dx = dict()
 		self.coefficients = 1.
+		self._depth = dict()
 
 		# TODO: Test the size of the chunks compared to n
 

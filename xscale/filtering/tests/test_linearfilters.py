@@ -27,7 +27,7 @@ dummy_array = xr.DataArray(np.random.random(shape), dims=dims, coords=coords)
 
 
 def test_init_window():
-	signal_xyt.win
+	signal_xyt.window
 
 
 def test_infer_arg():
@@ -46,7 +46,7 @@ def test_infer_arg():
 
 
 def test_set_nyquist():
-	w = dummy_array.win
+	w = dummy_array.window
 	w.set(dims=['y', 'x'])
 	assert w.fnyq == {'x': 1. / (2. * (cx[1] - cx[0])), 'y': 1. / (2. * (cy[1] - cy[0]))}
 
@@ -65,18 +65,18 @@ def test_set_nyquist():
 
 def test_wrong_window_name():
 	""" Test the exception if the window_name is not recognize """
-	w = signal_xyt.win
+	w = signal_xyt.window
 	with pytest.raises(ValueError, message="Expecting ValueError"):
 		w.set(window='circlecar')
 
 def test_wrong_dimension():
 	"""Test if an exception is returned if the dimension is not in the associated array """
-	win = signal_xyt.win
+	win = signal_xyt.window
 	with pytest.raises(ValueError, message="Expecting ValueError"):
 		win.set(dims=['z'])
 
 def test_compute_boundary_weights():
-	win2d = signal_xyt_wth_coast.win
+	win2d = signal_xyt_wth_coast.window
 	win2d.set(window='hanning', cutoff=0.05, dims=['y', 'x'], n=[24, 36])
 	win2d.boundary_weights(drop_dims=['time'])
 
