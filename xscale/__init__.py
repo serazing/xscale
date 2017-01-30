@@ -1,11 +1,12 @@
 # Python 2/3 compatibility
 from __future__ import absolute_import, division, print_function
 
-#__all__ = ['filtering', 'pca', 'signals', 'plot', 'spectral']
+# __all__ = ['filtering', 'pca', 'signal', 'plot', 'spectral']
 
-from . import filtering
-from . import signals
+# from . import filtering
+from . import signal
 from . import spectral
+from .filtering.linearfilters import Window
 
 from ._version import get_versions
 versions = get_versions()

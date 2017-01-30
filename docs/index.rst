@@ -1,7 +1,6 @@
 Xscale : Tools for separating spatial and temporal scales
 =========================================================
 
-This
 
 .. _xarray: https://github.com/pydata/xarray
 .. _dask: http://dask.pydata.org
@@ -13,12 +12,60 @@ This
 
 Documentation
 -------------
+Index
+-----
+
+**Installation**
+
+* :doc:`Installation`
 
 .. toctree::
    :maxdepth: 1
+          :hidden:
+       :caption: Installation
 
-   filtering
-   spectral
+       installation.rst
+
+
+**Filtering**
+
+* :doc:`Window`
+
+.. toctree::
+:maxdepth: 1
+       :hidden:
+       :caption: Filtering
+
+       window.rst
+
+**Spectral**
+
+* :doc:`FFT`
+
+.. toctree::
+:maxdepth: 1
+       :hidden:
+       :caption: Spectral
+
+**Signal**
+
+* :doc:`Generator`
+
+.. toctree::
+:maxdepth: 1
+       :hidden:
+       :caption: Signal
+
+
+**API**
+
+.. toctree::
+:maxdepth: 1
+       :hidden:
+       :caption: API
+
+       api.rst
+
 
 
 Get in touch

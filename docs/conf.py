@@ -173,14 +173,11 @@ extensions = [
     'IPython.sphinxext.ipython_console_highlighting',
 ]
 
-#extensions = [
-#    'sphinx.ext.mathjax', 'sphinx.ext.autodoc',
-#    'sphinx.ext.autosummary',
-#    'sphinx.ext.extlinks',
-#    'sphinx.ext.viewcode',
-#    'numpydoc',
-#]
-#extensions = ['sphinx.ext.autodoc', 'numpydoc']
+# Add mappings
+intersphinx_mapping = {
+	'xarray': ('http://xarray.pydata.org/en/stable/', None),
+	'dask': ('http://dask.pydata.org/en/stable/', None),
+}
 
 extlinks = {'issue': ('https://github.com/serazing/xscale/issues/%s', 'GH')}
 
@@ -211,11 +208,11 @@ copyright = u'2016, xscale developpers'
 # built documents.
 #
 
-import oocgcm
+# import xscale
 
-version = oocgcm.version.short_version
+#version = xscale.version.short_version
 # The full version, including alpha/beta/rc tags.
-release = oocgcm.__version__
+#release = xscale.__version__
 
 #version = '0.0.1'
 #release = '0.0.1'
@@ -400,7 +397,7 @@ latex_documents = [
 # One entry per manual page. List of tuples
 # (source start file, name, description, authors, manual section).
 man_pages = [
-    ('index', 'xscale', u'oocgcm Documentation',
+	('index', 'xscale', u'xscale Documentation',
      [u'xscale developpers'], 1)
 ]
 

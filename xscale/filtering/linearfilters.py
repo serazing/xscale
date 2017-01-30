@@ -9,9 +9,7 @@ from collections import Iterable
 # Numpy and scipy
 import numpy as np
 import scipy.signal as sig
-import scipy.signal.windows as win
 import scipy.ndimage as im
-import scipy.special as spec
 # Xarray and dask
 from dask.diagnostics import ProgressBar
 import xarray as xr
@@ -19,62 +17,25 @@ import xarray as xr
 import pylab as plt
 from matplotlib import gridspec
 # Current package
-from .. import utils
+from .. import _utils
 from ..plot.plot2d import spectrum2d_plot
 from ..plot.plot1d import spectrum_plot
 
 
-# ------------------------------------------------------------------------------
-# First part : Definition of custom window functions
-# ------------------------------------------------------------------------------
-def _lanczos(n, fc=0.02):
-	"""
-	Compute the coefficients of a Lanczos window. For private use only.
-
-	Parameters
-	----------
-	n : int
-		Number of points in the output window, must be an odd integer.
-	fc : float
-		Cutoff frequency
-
-	Returns
-	-------
-	w : ndarray
-		The weights associated to the boxcar window
-	"""
-	if not n % 2 == 1:
-		raise ValueError("n must an odd integer")
-	k = np.arange(- n / 2 + 1, n / 2 + 1)
-	# k = np.arange(0, n + 1)
-	# w = (np.sin(2 * pi * fc * k) / (pi * k) *
-	#     np.sin(pi * k / n) / (pi * k / n))
-	w = (np.sin(2. * np.pi * fc * k) / (np.pi * k) *
-	     np.sin(np.pi * k / (n / 2.)) / (np.pi * k / (n / 2.)))
-	# Particular case where k=0
-	w[n / 2] = 2. * fc
-	return w
-
-_local_window_dict = {'lanczos': _lanczos, 'lcz': _lanczos}
-
-# ------------------------------------------------------------------------------
-# First part : Definition of window classes for filtering
-# ------------------------------------------------------------------------------
-
-#@xr.register_dataset_accessor('win')
 @xr.register_dataarray_accessor('window')
 class Window(object):
 	"""
 	Class for all different type of windows
 	"""
 
-	_attributes = ['order', 'cutoff', 'window']
+	_attributes = ['order', 'cutoff', 'dx', 'window']
 
 	def __init__(self, xarray_obj):
 		self._obj = xarray_obj
 		self.obj = xarray_obj
 		self.n = None
 		self.dims = None
+		self.ndim = 0
 		self.cutoff = None
 		self.window = None
 		self.order = None
@@ -94,7 +55,7 @@ class Window(object):
 		return "{klass} [{attrs}]".format(klass=self.__class__.__name__,
 		                                  attrs=', '.join(attrs))
 
-	def set(self, n=None, dims=None, cutoff=None, window='boxcar', chunks=None):
+	def set(self, n=None, dims=None, cutoff=None, dx=None, window='boxcar', chunks=None):
 		"""
 		Set the different properties of the current window
 
@@ -128,30 +89,29 @@ class Window(object):
 		"""
 
 		# Check and interpret n and dims parameters
-		self.n, self.dims = utils.infer_n_and_dims(self._obj, n, dims)
+		self.n, self.dims = _utils.infer_n_and_dims(self._obj, n, dims)
+		self.ndim = len(self.dims)
 		self.order = {di: nbw for nbw, di in zip(self.n, self.dims)}
-		# Check and interpret cutoff parameter
 		self.cutoff = _infer_arg(cutoff, self.dims)
-		# Check and interpret cutoff parameter
+		self.dx = _infer_arg(dx, self.dims)
 		self.window = _infer_arg(window, self.dims, default_value='boxcar')
-		# Check and interpret the window parameter
+		# Rechunk if needed
 		self.obj = self._obj.chunk(chunks=chunks)
 
 		# Reset attributes
 		self.fnyq = dict()
-		self.dx = dict()
 		self.coefficients = 1.
 		self._depth = dict()
 
 		# TODO: Test the size of the chunks compared to n
-
 		# Build the multi-dimensional window: the hard part
 		for di in self.obj.dims:
 			axis_num = self.obj.get_axis_num(di)
 			if di in self.dims:
-				self._depth[axis_num] = self.order[di] % 2
-				dx = utils.get_dx(self.obj, di)
-				self.dx[di] = dx
+				self._depth[axis_num] = int(self.order[di] / 2)
+				if self.dx[di] is None:
+					dx = _utils.get_dx(self.obj, di)
+					self.dx[di] = dx
 				self.fnyq[di] = 1. / (2. * dx)
 				# Compute the coefficients associated to the window using scipy functions
 				if self.cutoff[di] is None:
@@ -159,7 +119,7 @@ class Window(object):
 					coefficients1d = sig.get_window(self.window[di], self.order[di])
 				else:
 					# Use firwin if the cutoff is defined
-					coefficients1d = sig.firwin(self.order[di], self.cutoff[di], window=self.window[di],
+					coefficients1d = sig.firwin(self.order[di], 1. / self.cutoff[di], window=self.window[di],
 					                            nyq=self.fnyq[di])
 				# Normalize the coefficients
 				self.coefficients = np.outer(self.coefficients, coefficients1d)
@@ -180,7 +140,7 @@ class Window(object):
 		weights :
 
 		compute : bool, optional
-			If True, the computation is performed after the dask graph have been made. If False, only the dask graph is
+			If True, the computation is performed after the dask graph has been made. If False, only the dask graph is
 			made is the computation will be performed later on. The latter allows the integration into a larger dask
 			graph, which could include other computational steps.
 
@@ -192,6 +152,7 @@ class Window(object):
 		# Check if the data has more dimensions than the window and add
 		# extra-dimensions to the window if it is the case
 		coeffs = self.coefficients / np.sum(self.coefficients)
+		# TODO: Modify the mask section because it consumes too much memory when looking for notnull cells
 		mask = self.obj.notnull()
 		if weights is None:
 			weights = im.convolve(mask.astype(float), coeffs, mode=mode)
@@ -238,6 +199,7 @@ class Window(object):
 		res = xr.DataArray(out, dims=self.obj.dims, coords=self.obj.coords, name=self.obj.name)
 		return res
 
+
 	def boundary_weights(self, mode='reflect', drop_dims=None):
 		"""
 		Compute the boundary weights
@@ -260,35 +222,46 @@ class Window(object):
 		res = xr.DataArray(weights, dims=new_dims, coords=new_coords, name='boundary weights')
 		return res.where(mask == 1)
 
-	def plot(self, format = 'landscape'):
+	def plot(self):
 		"""
 		Plot the weights distribution of the window and the associated
 		spectrum (work only for 1D and 2D windows).
 		"""
-		nod = len(self.dims)
-		if nod == 1:
+		if self.ndim == 1:
+
+			dim = self.dims[0]
 			# Compute 1D spectral response
-			spectrum = np.fft.fft(self.coefficients.squeeze(), 2048) / (len(self.coefficients.squeeze()) / 2.0)
-			freq = np.linspace(-0.5, 0.5, len(spectrum))
-			response = 20 * np.log10(np.abs(np.fft.fftshift(spectrum / abs(spectrum).max())))
+			spectrum = np.fft.rfft(self.coefficients.squeeze(), 1024) / (len(self.coefficients.squeeze()) / 2.0)
+			freq = np.fft.rfftfreq(1024, d=self.dx[dim])
+			response = 20 * np.log10(np.abs(spectrum / abs(spectrum).max()))
+			# Look for the cutoff frequency at -3 db and  -6 db
+			# Useful tools to check the filter selectivity
+			f3db = freq[np.argmin(np.abs(response + 3))]
+			print('f3db=%f' % f3db)
+			f6db = freq[np.argmin(np.abs(response + 6))]
+			print('f6db=%f' % f6db)
 			# Plot window properties
 			fig, (ax1, ax2) = plt.subplots(nrows=1, ncols=2, figsize=(10, 5))
+
 			# First plot: weight distribution
-			n = self._depth.values()[0]
-			ax1.plot(np.arange(-n, n + 1), self.coefficients.squeeze())
-			ax1.set_xlim((-n, n))
-			ax1.set_title("Window: " + self.name)
+			n = self.n[0]
+			ax1.plot(np.linspace(-n / 2, n / 2, n), self.coefficients.squeeze(), lw=1.5)
+			ax1.set_xlim((-n / 2, n / 2))
 			ax1.set_ylabel("Amplitude")
 			ax1.set_xlabel("Sample")
+
 			# Second plot: frequency response
-			ax2.plot(freq, response)
-			ax2.axis([-0.5, 0.5, -120, 0])
-			ax2.set_title("Frequency response of the " + self.name + " window")
+			ax2.semilogx(freq, response, lw=1.5)
+			ax2.plot([0, f3db], [-3, -3], lw=1, color='r')
+			ax2.plot([0, f6db], [-6, -6], lw=1, color='g')
+			ax2.set_ylim((-120, 0))
 			ax2.set_ylabel("Normalized magnitude [dB]")
-			ax2.set_xlabel("Normalized frequency [cycles per sample]")
+			ax2.set_xlabel("Frequency [cycles per sample]")
 			ax2.grid(True)
+
 			plt.tight_layout()
-		elif nod == 2:
+
+		elif self.ndim == 2:
 			# Compute 2D spectral response
 			nx = self.n[0]
 			ny = self.n[1]
@@ -297,20 +270,19 @@ class Window(object):
 			response = np.abs(np.fft.fftshift(spectrum / abs(spectrum).max()))
 			fx = np.fft.fftshift(np.fft.fftfreq(1024, self.dx[self.dims[0]]))
 			fy = np.fft.fftshift(np.fft.fftfreq(1024, self.dx[self.dims[0]]))
-			f2d = np.meshgrid(fy, fx)
-			if  format == 'landscape':
-				gs = gridspec.GridSpec(2, 4, width_ratios=[2, 1, 2, 1], height_ratios=[1, 2])
-				plt.figure(figsize=(11.69, 8.27))
-			elif format == 'portrait':
-				plt.figure(figsize=(8.27, 11.69))
+			gs = gridspec.GridSpec(2, 4, width_ratios=[2, 1, 2, 1], height_ratios=[1, 2])
+			plt.figure(figsize=(11.69, 8.27))
+
 			# Weight disribution along x
 			ax_nx = plt.subplot(gs[0])
 			ax_nx.plot(np.arange(-nx, nx + 1), self.coefficients.squeeze()[:, ny])
 			ax_nx.set_xlim((-nx, nx))
+
 			# Weight disribution along y
 			ax_nx = plt.subplot(gs[5])
 			ax_nx.plot(self.coefficients.squeeze()[nx, :], np.arange(-ny, ny + 1))
 			ax_nx.set_ylim((-ny, ny))
+
 			# Full 2d weight distribution
 			ax_n2d = plt.subplot(gs[4])
 			nx2d, ny2d = np.meshgrid(np.arange(-nx, nx + 1), np.arange(-ny, ny + 1), indexing='ij')
@@ -320,18 +292,21 @@ class Window(object):
 			box = dict(facecolor='white', pad=10.0)
 			ax_n2d.text(0.97, 0.97, r'$w(n_x,n_y)$', fontsize='x-large', bbox=box, transform=ax_n2d.transAxes,
 			            horizontalalignment='right', verticalalignment='top')
+
 			# Frequency response for fy = 0
 			ax_fx = plt.subplot(gs[2])
 			spectrum_plot(ax_fx, fx, response[:, 512].squeeze(),)
 			# ax_fx.set_xlim(xlim)
 			ax_fx.grid(True)
 			ax_fx.set_ylabel(r'$R(f_x,0)$', fontsize=24)
+
 			# Frequency response for fx = 0
 			ax_fy = plt.subplot(gs[7])
 			spectrum_plot(ax_fy, response[:, 512].squeeze(), fy)
 			#ax_fy.set_ylim(ylim)
 			ax_fy.grid(True)
 			ax_fy.set_xlabel(r'$,R(0,f_y)$', fontsize=24)
+
 			# Full 2D frequency response
 			ax_2d = plt.subplot(gs[6])
 			spectrum2d_plot(ax_2d, fx, fy, response, zlog=True)
@@ -342,18 +317,19 @@ class Window(object):
 			ax_2d.text(0.97, 0.97, r'$R(f_x,f_y)$', fontsize='x-large', bbox=box, transform=ax_2d.transAxes,
 			           horizontalalignment='right', verticalalignment='top')
 			plt.tight_layout()
+
 		else:
-			raise ValueError, "This number of dimension is not supported by the plot function"
+			raise ValueError("This number of dimension is not supported by the plot function")
 
 
 def _infer_arg(arg, dims, default_value=None):
-	"""Private function for inferring the cutoff dictionary"""
+	"""Private function for inferring the cutoff and window dictionaries"""
 	new_arg = dict()
 	if arg is None:
 		new_arg = {di: default_value for di in dims}
-	elif utils.is_scalar(arg):
+	elif _utils.is_scalar(arg):
 		new_arg = {di: arg for di in dims}
-	elif utils.is_dict_like(arg):
+	elif _utils.is_dict_like(arg):
 		for di in dims:
 			try:
 				new_arg[di] = arg[di]
