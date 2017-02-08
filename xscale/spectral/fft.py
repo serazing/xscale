@@ -12,7 +12,8 @@ from .. import _utils
 import warnings
 
 
-def ps(array, dim=None, detrend=None, tapering=False, shift=True, chunks=None):
+def ps(array, dim=None, dx=None, detrend=None, tapering=False, shift=True,
+       chunks=None):
 	"""
 	Compute the Power Spectrum (PS)
 
@@ -22,6 +23,10 @@ def ps(array, dim=None, detrend=None, tapering=False, shift=True, chunks=None):
 		Array from which compute the spectrum
 	dim : str or sequence, optional
 		Dimensions along which to compute the spectrum
+	dx : float or sequence, optional
+		Define the resolution of the dimensions. If not precised,
+		the resolution is computed directly from the coordinates associated
+		to the dimensions.
 	detrend : {None, 'zeromean', 'linear'}, optional
 		Remove the mean or a linear trend before the spectrum computation
 	tapering : bool, optional
@@ -29,26 +34,29 @@ def ps(array, dim=None, detrend=None, tapering=False, shift=True, chunks=None):
 	shift : bool, optional
 		If True, the frequency axes are centered around 0.
     chunks : int, tuple or dict, optional
-	    Chunk sizes along each dimension, e.g., ``5``, ``(5, 5)`` or ``{'x': 5, 'y': 5}``
+	    Chunk sizes along each dimension, e.g., ``5``, ``(5, 5)`` or
+	    ``{'x': 5, 'y': 5}``
 
 	Returns
 	-------
 	spectrum : xarray.DataArray
 		Spectral array computed over the different arrays
 	"""
-	spec = spectrum(array, dim=dim, detrend=detrend, tapering=tapering, shift=shift, chunks=chunks)
+	spec = fft(array, dim=dim, detrend=detrend, tapering=tapering, shift=shift,
+	           chunks=chunks)
 	power_spectrum = (spec * da.conj(spec)).real / spec.attrs['ps_factor']
 	if array.name is None:
 		power_spectrum.name = 'PS'
 	else:
 		power_spectrum.name = 'PS_' + array.name
-	power_spectrum.attrs['description'] = 'Power Spectrum (PS) performed along dimension(s) %s ' % dim
+	power_spectrum.attrs['description'] = ('Power Spectrum (PS) performed '
+	                                       'along dimension(s) %s ' % dim)
 	return power_spectrum
 
 
-def psd(array, dim=None, detrend=None, tapering=False, shift=True, chunks=None):
-	"""
-	Compute the Power Spectrum Density (PSD)
+def psd(array, dim=None, dx=None, detrend=None, tapering=False, shift=True,
+        chunks=None):
+	"""Compute the Power Spectrum Density (PSD)
 
 	Parameters
 	----------
@@ -56,30 +64,40 @@ def psd(array, dim=None, detrend=None, tapering=False, shift=True, chunks=None):
 		Array from which compute the spectrum
 	dim : str or sequence, optional
 		Dimensions along which to compute the spectrum
+	dx : float or sequence, optional
+		Define the resolution of the dimensions. If not precised,
+		the resolution is computed directly from the coordinates associated
+		to the dimensions.
 	detrend : {None, 'zeromean', 'linear'}, optional
 		Remove the mean or a linear trend before the spectrum computation
 	tapering : bool, optional
 		If True, tapper the data with a Tukey window
     chunks : int, tuple or dict, optional
-	    Chunk sizes along each dimension, e.g., ``5``, ``(5, 5)`` or ``{'x': 5, 'y': 5}``
+	    Chunk sizes along each dimension, e.g., ``5``, ``(5, 5)`` or
+	    ``{'x': 5, 'y': 5}``
 
 	Returns
 	-------
 	spectrum : xarray.DataArray
 		Spectral array computed over the different arrays
 	"""
-	spec = spectrum(array, dim=dim, detrend=detrend, tapering=tapering, shift=shift, chunks=chunks)
+	spec = fft(array, dim=dim, detrend=detrend, tapering=tapering, shift=shift,
+	           chunks=chunks)
 	#TODO: Make the correct normalization for the power spectrum and check with the Parseval theorem
-	power_spectrum_density = (spec * da.conj(spec)).real / spec.attrs['psd_factor']
+	power_spectrum_density = ((spec * da.conj(spec)).real /
+	                          spec.attrs['psd_factor'])
 	if array.name is None:
 		power_spectrum_density.name = 'PSD'
 	else:
 		power_spectrum_density.name = 'PSD_' + array.name
-	power_spectrum_density.attrs['description'] = 'Power Spectrum Density (PSD) performed along dimension(s) %s ' % dim
+	power_spectrum_density.attrs['description'] = ('Power Spectrum Density '
+	                                               '(PSD) performed along '
+	                                               'dimension(s) %s ' % dim)
 	return power_spectrum_density
 
 
-def spectrum(array, nfft=None, dim=None, detrend=None, tapering=False, shift=False, chunks=None):
+def fft(array, nfft=None, dim=None, dx=None, detrend=None, tapering=False,
+        shift=False, chunks=None):
 	"""
 	Compute the spectrum on several dimensions of xarray.DataArray objects using the Fast Fourrier Transform
 	parrallelized with dask.array.
@@ -90,12 +108,17 @@ def spectrum(array, nfft=None, dim=None, detrend=None, tapering=False, shift=Fal
 		Array from which compute the spectrum
 	dim : str or sequence
 		Dimensions along which to compute the spectrum
+	dx : float or sequence, optional
+		Define the resolution of the dimensions. If not precised,
+		the resolution is computed directly from the coordinates associated
+		to the dimensions.
 	detrend : {None, 'zeromean', 'linear'}, optional
 		Remove the mean or a linear trend before the spectrum computation
 	tapering : bool, optional
 		If True, tapper the data with a Tukey window
 	chunks : int, tuple or dict, optional
-		Chunk sizes along each dimension, e.g., ``5``, ``(5, 5)`` or ``{'x': 5, 'y': 5}``
+		Chunk sizes along each dimension, e.g., ``5``, ``(5, 5)`` or
+		``{'x': 5, 'y': 5}``
 
 	Returns
 	-------
@@ -109,23 +132,53 @@ def spectrum(array, nfft=None, dim=None, detrend=None, tapering=False, shift=Fal
 	dimensions are computed with the classic fft.
 	"""
 	new_n, new_dim = _utils.infer_n_and_dims(array, nfft, dim)
+	new_dx = _utils.infer_arg(dx, dim)
 	if detrend is 'zeromean':
-		# Tackling the issue of the dask graph by computing and loading the mean here
+		# Tackling the issue of the dask graph by computing and loading the
+		# mean here
 		mean_array = array.mean(dim=new_dim).load()
 		preproc_array = array - mean_array
 	elif detrend is 'linear':
-		preproc_array = _detrend(array, dim)
+		preproc_array = _detrend(array, new_dim)
 	else:
 		preproc_array = array
 	if tapering:
-		preproc_array = _tapper(array, dim)
-	spectrum_array, spectrum_coords, spectrum_dims = _fft(preproc_array, new_dim, shift=shift, chunks=chunks)
-	spec = xr.DataArray(spectrum_array, coords=spectrum_coords, dims=spectrum_dims, name='spectrum')
+		preproc_array = _tapper(array, new_dim)
+	spectrum_array, spectrum_coords, spectrum_dims = _fft(preproc_array,
+	                                                      new_dim, new_dx,
+	                                                      shift=shift,
+	                                                      chunks=chunks)
+	spec = xr.DataArray(spectrum_array, coords=spectrum_coords,
+	                    dims=spectrum_dims, name='spectrum')
 	_compute_norm_factor(spec, dim, tapering)
 	return spec
 
 
-def _fft(array, dim, shift=False, chunks=None):
+def fit_power_law(freq, spectrum):
+	"""Fit a logarithmic spectral law based on the input  one
+	dimensional spectrum
+
+	Parameters
+	----------
+	freq : 1darray
+		The frequency coordinates
+	spectrum : 1darray
+		The one-dimensional spectrum
+
+	Returns
+	-------
+	power : float
+		The power characteristic of a power law spectrul
+	scale_factor: float
+		The scale factor related to fit the power law with the input spectrum
+	"""
+	from scipy.stats import linregress
+	power, intercept, _, _, _ = linregress(np.log(freq), np.log(spectrum))
+	scale_factor = np.exp(intercept)
+	return power, scale_factor
+
+
+def _fft(array, dim, dx, shift=False, chunks=None):
 	"""This function is for private use only.
 	"""
 	spectrum_array = array.chunk(chunks=chunks).data
@@ -145,21 +198,28 @@ def _fft(array, dim, shift=False, chunks=None):
 			# TODO: change the next line to allow the choice of nfft by the user
 			nfft = array[di].size
 			# Compute the resolution of the different dimension
-			dx = _utils.get_dx(array, di)
+			if dx[di] is None:
+				dx[di] = _utils.get_dx(array, di)
 			#FFT part
 			if first and not np.iscomplexobj(spectrum_array):
 				# The first FFT is performed on real numbers: the use of rfft is faster
-				spectrum_coords['f_' + di] = np.fft.rfftfreq(nfft, dx)
-				spectrum_array = (da.fft.rfft(spectrum_array.rechunk({axis_num: nfft}), axis=axis_num).
-				                  rechunk({axis_num: chunks[axis_num][0]}))
+				spectrum_coords['f_' + di] = np.fft.rfftfreq(nfft, dx[di])
+				spectrum_array = \
+					(da.fft.rfft(spectrum_array.rechunk({axis_num: nfft}),
+					             axis=axis_num).
+					 rechunk({axis_num: chunks[axis_num][0]}))
 			else:
 				# The successive FFTs are performed on complex numbers: need to use classic fft
-				spectrum_coords['f_' + di] = np.fft.fftfreq(nfft, dx)
-				spectrum_array = (da.fft.fft(spectrum_array.rechunk({axis_num: nfft}), axis=axis_num).
-				                  rechunk({axis_num: chunks[axis_num][0]}))
+				spectrum_coords['f_' + di] = np.fft.fftfreq(nfft, dx[di] )
+				spectrum_array = \
+					(da.fft.fft(spectrum_array.rechunk({axis_num: nfft}),
+					            axis=axis_num).
+				    rechunk({axis_num: chunks[axis_num][0]}))
 				if shift is True:
-					spectrum_coords['f_' + di] = np.fft.fftshift(spectrum_coords['f_' + di])
-					spectrum_array = np.fft.fftshift(spectrum_array, axes=axis_num)
+					spectrum_coords['f_' + di] = \
+						np.fft.fftshift(spectrum_coords['f_' + di])
+					spectrum_array = np.fft.fftshift(spectrum_array,
+					                                 axes=axis_num)
 			first = False
 		else:
 			warnings.warn("Cannot find dimension %s in DataArray" % di)
@@ -168,7 +228,8 @@ def _fft(array, dim, shift=False, chunks=None):
 
 def _detrend(array, dim):
 	# TODO: implement the detrending function
-	raise NotImplementedError("The linear detrending option is not implemented yet.")
+	raise NotImplementedError("The linear detrending option is not implemented "
+	                          "yet.")
 
 
 def _tapper(array, dim):
@@ -191,7 +252,8 @@ def _compute_norm_factor(array, dim, tapering):
 		psd_factor = 1.
 	for di in dim:
 		if tapering:
-			raise NotImplementedError("The tapering option is not implemented yet.")
+			raise NotImplementedError("The tapering option is not implemented "
+			                          "yet.")
 		else:
 			df = np.diff(array['f_' + di])[0]
 			s1 = array['f_' + di].size
@@ -200,3 +262,4 @@ def _compute_norm_factor(array, dim, tapering):
 		psd_factor /= df * s2
 	array.attrs['ps_factor'] = ps_factor
 	array.attrs['psd_factor'] = psd_factor
+
