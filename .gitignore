@@ -6,8 +6,9 @@ dist/
 *.swp
 
 # Documentation
-doc/_build
-doc/generated
+docs/_build
+docs/generated
+docs/*.png
 
 # Byte-compiled / optimized / DLL files
 __pycache__/

@@ -2,6 +2,9 @@
 import xarray as xr
 # Numpy
 import numpy as np
+from numpy.compat import integer_types
+from numpy.core import integer
+
 # Dask
 import dask.array as da
 # Internals
@@ -11,9 +14,12 @@ from .. import _utils
 # Warnings
 import warnings
 
+integer_types = integer_types + (integer,)
 
-def ps(array, dim=None, dx=None, detrend=None, tapering=False, shift=True,
-       chunks=None):
+import pytest
+
+def ps(array, nfft=None, dim=None, dx=None, detrend=None, tapering=False,
+       shift=True, chunks=None):
 	"""
 	Compute the Power Spectrum (PS)
 
@@ -42,9 +48,10 @@ def ps(array, dim=None, dx=None, detrend=None, tapering=False, shift=True,
 	spectrum : xarray.DataArray
 		Spectral array computed over the different arrays
 	"""
-	spec = fft(array, dim=dim, detrend=detrend, tapering=tapering, shift=shift,
-	           chunks=chunks)
-	power_spectrum = (spec * da.conj(spec)).real / spec.attrs['ps_factor']
+	spec = fft(array, nfft=nfft, dim=dim, dx=dx, detrend=detrend,
+	           tapering=tapering, shift=shift, chunks=chunks)
+	power_spectrum = (spec * da.conj(spec)).real * spec.attrs['ps_factor']
+	#pytest.set_trace()
 	if array.name is None:
 		power_spectrum.name = 'PS'
 	else:
@@ -54,8 +61,8 @@ def ps(array, dim=None, dx=None, detrend=None, tapering=False, shift=True,
 	return power_spectrum
 
 
-def psd(array, dim=None, dx=None, detrend=None, tapering=False, shift=True,
-        chunks=None):
+def psd(array, nfft=None, dim=None, dx=None, detrend=None, tapering=False,
+        shift=True, chunks=None):
 	"""Compute the Power Spectrum Density (PSD)
 
 	Parameters
@@ -81,10 +88,10 @@ def psd(array, dim=None, dx=None, detrend=None, tapering=False, shift=True,
 	spectrum : xarray.DataArray
 		Spectral array computed over the different arrays
 	"""
-	spec = fft(array, dim=dim, detrend=detrend, tapering=tapering, shift=shift,
-	           chunks=chunks)
+	spec = fft(array, nfft=nfft, dim=dim, dx=dx, detrend=detrend,
+	           tapering=tapering, shift=shift, chunks=chunks)
 	#TODO: Make the correct normalization for the power spectrum and check with the Parseval theorem
-	power_spectrum_density = ((spec * da.conj(spec)).real /
+	power_spectrum_density = ((spec * da.conj(spec)).real *
 	                          spec.attrs['psd_factor'])
 	if array.name is None:
 		power_spectrum_density.name = 'PSD'
@@ -99,8 +106,8 @@ def psd(array, dim=None, dx=None, detrend=None, tapering=False, shift=True,
 def fft(array, nfft=None, dim=None, dx=None, detrend=None, tapering=False,
         shift=False, chunks=None):
 	"""
-	Compute the spectrum on several dimensions of xarray.DataArray objects using the Fast Fourrier Transform
-	parrallelized with dask.array.
+	Compute the spectrum on several dimensions of xarray.DataArray objects using
+	 the Fast Fourrier Transform parrallelized with dask.
 
 	Parameters
 	----------
@@ -131,7 +138,8 @@ def fft(array, nfft=None, dim=None, dx=None, detrend=None, tapering=False,
 	dimension, which is faster. Then the transform over the remaining
 	dimensions are computed with the classic fft.
 	"""
-	new_n, new_dim = _utils.infer_n_and_dims(array, nfft, dim)
+	temp_nfft, new_dim = _utils.infer_n_and_dims(array, nfft, dim)
+	new_nfft = _utils.infer_arg(temp_nfft, dim)
 	new_dx = _utils.infer_arg(dx, dim)
 	if detrend is 'zeromean':
 		# Tackling the issue of the dask graph by computing and loading the
@@ -144,41 +152,16 @@ def fft(array, nfft=None, dim=None, dx=None, detrend=None, tapering=False,
 		preproc_array = array
 	if tapering:
 		preproc_array = _tapper(array, new_dim)
-	spectrum_array, spectrum_coords, spectrum_dims = _fft(preproc_array,
-	                                                      new_dim, new_dx,
-	                                                      shift=shift,
-	                                                      chunks=chunks)
+	spectrum_array, spectrum_coords, spectrum_dims = \
+		_fft(preproc_array, new_nfft, new_dim, new_dx, shift=shift,
+		     chunks=chunks)
 	spec = xr.DataArray(spectrum_array, coords=spectrum_coords,
 	                    dims=spectrum_dims, name='spectrum')
-	_compute_norm_factor(spec, dim, tapering)
+	_compute_norm_factor(spec, new_nfft, new_dim, tapering)
 	return spec
 
 
-def fit_power_law(freq, spectrum):
-	"""Fit a logarithmic spectral law based on the input  one
-	dimensional spectrum
-
-	Parameters
-	----------
-	freq : 1darray
-		The frequency coordinates
-	spectrum : 1darray
-		The one-dimensional spectrum
-
-	Returns
-	-------
-	power : float
-		The power characteristic of a power law spectrul
-	scale_factor: float
-		The scale factor related to fit the power law with the input spectrum
-	"""
-	from scipy.stats import linregress
-	power, intercept, _, _, _ = linregress(np.log(freq), np.log(spectrum))
-	scale_factor = np.exp(intercept)
-	return power, scale_factor
-
-
-def _fft(array, dim, dx, shift=False, chunks=None):
+def _fft(array, nfft, dim, dx, shift=False, chunks=None):
 	"""This function is for private use only.
 	"""
 	spectrum_array = array.chunk(chunks=chunks).data
@@ -195,31 +178,30 @@ def _fft(array, dim, dx, shift=False, chunks=None):
 	for di in dim:
 		if di in array.dims:
 			axis_num = array.get_axis_num(di)
-			# TODO: change the next line to allow the choice of nfft by the user
-			nfft = array[di].size
+			dim_length = array.shape[axis_num]
 			# Compute the resolution of the different dimension
 			if dx[di] is None:
 				dx[di] = _utils.get_dx(array, di)
 			#FFT part
 			if first and not np.iscomplexobj(spectrum_array):
 				# The first FFT is performed on real numbers: the use of rfft is faster
-				spectrum_coords['f_' + di] = np.fft.rfftfreq(nfft, dx[di])
+				spectrum_coords['f_' + di] = np.fft.rfftfreq(nfft[di], dx[di])
 				spectrum_array = \
-					(da.fft.rfft(spectrum_array.rechunk({axis_num: nfft}),
+					(da.fft.rfft(spectrum_array.rechunk({axis_num: dim_length}),
 					             axis=axis_num).
 					 rechunk({axis_num: chunks[axis_num][0]}))
 			else:
 				# The successive FFTs are performed on complex numbers: need to use classic fft
-				spectrum_coords['f_' + di] = np.fft.fftfreq(nfft, dx[di] )
+				spectrum_coords['f_' + di] = np.fft.fftfreq(nfft[di], dx[di])
 				spectrum_array = \
-					(da.fft.fft(spectrum_array.rechunk({axis_num: nfft}),
+					(da.fft.fft(spectrum_array.rechunk({axis_num: dim_length}),
 					            axis=axis_num).
 				    rechunk({axis_num: chunks[axis_num][0]}))
 				if shift is True:
 					spectrum_coords['f_' + di] = \
 						np.fft.fftshift(spectrum_coords['f_' + di])
-					spectrum_array = np.fft.fftshift(spectrum_array,
-					                                 axes=axis_num)
+					#TODO: np.fft.fftshift impose to compute the dask graph !
+					spectrum_array = _fftshift(spectrum_array, axes=axis_num)
 			first = False
 		else:
 			warnings.warn("Cannot find dimension %s in DataArray" % di)
@@ -239,7 +221,7 @@ def _tapper(array, dim):
 	raise NotImplementedError("The tapering option is not implemented yet.")
 
 
-def _compute_norm_factor(array, dim, tapering):
+def _compute_norm_factor(array, nfft, dim, tapering):
 	"""Compute the normalization factor for Power Spectrum and Power Spectrum Density
 	"""
 	try:
@@ -256,10 +238,35 @@ def _compute_norm_factor(array, dim, tapering):
 			                          "yet.")
 		else:
 			df = np.diff(array['f_' + di])[0]
-			s1 = array['f_' + di].size
+			s1 = nfft[di]
 			s2 = s1
 		ps_factor /= s1 ** 2
 		psd_factor /= df * s2
 	array.attrs['ps_factor'] = ps_factor
 	array.attrs['psd_factor'] = psd_factor
 
+
+def _fftshift(x, axes=None):
+    if axes is None:
+        axes = list(range(x.ndim))
+    elif isinstance(axes, integer_types):
+        axes = (axes,)
+    for k in axes:
+        n = x.shape[k]
+        p2 = (n + 1) // 2
+        mylist = np.concatenate((np.arange(p2, n), np.arange(p2)))
+        x = da.take(x, mylist, k)
+    return x
+
+
+def _ifftshift(x, axes=None):
+    if axes is None:
+        axes = list(range(x.ndim))
+    elif isinstance(axes, integer_types):
+        axes = (axes,)
+    for k in axes:
+        n = x.shape[k]
+        p2 = n - (n + 1) // 2
+        mylist = np.concatenate((np.arange(p2, n), np.arange(p2)))
+        x = da.take(x, mylist, k)
+	return x

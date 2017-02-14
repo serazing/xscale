@@ -12,9 +12,10 @@ extras_require = {
   'distributed': ['distributed >= 1.14', 's3fs >= 0.0.7'],
   'imperative': ['toolz >= 0.7.2'],
 }
+
 extras_require['complete'] = sorted(set(sum(extras_require.values(), [])))
 
-packages = ['xscale', 'xscale.filtering', 'xscale.signal', 'xscale.spectral', 'xscale.plot']
+packages = ['xscale', 'xscale.filtering', 'xscale.signal', 'xscale.spectral']
 
 tests = [p + '.tests' for p in packages]
 

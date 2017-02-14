@@ -18,8 +18,6 @@ import pylab as plt
 from matplotlib import gridspec
 # Current package
 from .. import _utils
-from ..plot.plot2d import spectrum2d_plot
-from ..plot.plot1d import spectrum_plot
 
 
 @xr.register_dataarray_accessor('window')
@@ -55,7 +53,8 @@ class Window(object):
 		return "{klass} [{attrs}]".format(klass=self.__class__.__name__,
 		                                  attrs=', '.join(attrs))
 
-	def set(self, n=None, dims=None, cutoff=None, dx=None, window='boxcar', chunks=None):
+	def set(self, n=None, dims=None, cutoff=None, dx=None, window='boxcar',
+	        chunks=None):
 		"""
 		Set the different properties of the current window
 
@@ -70,31 +69,38 @@ class Window(object):
 		Parameters
 		----------
 		n : int, sequence or dict, optional
-			The window order over the dimensions specified through a dictionary or through the ``dims`` parameters. If
-			``n`` is ``None``, the window order is set to the total size of the corresponding dimensions according to
-			the ``dims`` parameters
-
+			The window order over the dimensions specified through a dictionary
+			or through the ``dims`` parameters. If ``n`` is ``None``, the window
+			order is set to the total size of the corresponding dimensions
+			according to the ``dims`` parameters
 		dims : str or sequence, optional
-			Names of the dimension associated to the window. If ``dims`` is  None, all the dimensions are taken.
-
+			Names of the dimension associated to the window. If ``dims`` is
+			None, all the dimensions are taken.
 		cutoff : float, sequence or dict, optional
-			The window cutoff over the dimensions specified through a dictionary, or through the ``dims``
-			parameters. If `cutoff`` is ``None``, the cutoff parameters will be not used in the design the window.
-
+			The window cutoff over the dimensions specified through a
+			dictionary, or through the ``dims`` parameters. If `cutoff`` is
+			``None``, the cutoff parameters will be not used in the design
+			the window.
+		dx : float or sequence, optional
+			Define the resolution of the dimensions. If not precised,
+			the resolution is computed directly from the coordinates
+			associated to the dimensions.
 		window : string, tuple of string and parameter values, or dict
-			Desired window to use. See scipy.signal.get_window for a list of windows and required parameters.
-
+			Desired window to use. See scipy.signal.get_window for a list of
+			windows and required parameters.
         chunks : int, tuple or dict, optional
-            Chunk sizes along each dimension, e.g., ``5``, ``(5, 5)`` or ``{'x': 5, 'y': 5}``
+            Chunk sizes along each dimension, e.g., ``5``, ``(5, 5)`` or
+            ``{'x': 5, 'y': 5}``
 		"""
 
 		# Check and interpret n and dims parameters
 		self.n, self.dims = _utils.infer_n_and_dims(self._obj, n, dims)
 		self.ndim = len(self.dims)
 		self.order = {di: nbw for nbw, di in zip(self.n, self.dims)}
-		self.cutoff = _infer_arg(cutoff, self.dims)
-		self.dx = _infer_arg(dx, self.dims)
-		self.window = _infer_arg(window, self.dims, default_value='boxcar')
+		self.cutoff = _utils.infer_arg(cutoff, self.dims)
+		self.dx = _utils.infer_arg(dx, self.dims)
+		self.window = _utils.infer_arg(window, self.dims,
+		                               default_value='boxcar')
 		# Rechunk if needed
 		self.obj = self._obj.chunk(chunks=chunks)
 
@@ -119,7 +125,9 @@ class Window(object):
 					coefficients1d = sig.get_window(self.window[di], self.order[di])
 				else:
 					# Use firwin if the cutoff is defined
-					coefficients1d = sig.firwin(self.order[di], 1. / self.cutoff[di], window=self.window[di],
+					coefficients1d = sig.firwin(self.order[di],
+					                            1. / self.cutoff[di],
+					                            window=self.window[di],
 					                            nyq=self.fnyq[di])
 				# Normalize the coefficients
 				self.coefficients = np.outer(self.coefficients, coefficients1d)
@@ -162,14 +170,16 @@ class Window(object):
 			xf = im.convolve(x, coeffs, mode=mode)
 			return xf
 
-		data = filled_data.map_overlap(conv, depth=self._depth, boundary=mode, trim=True)
+		data = filled_data.map_overlap(conv, depth=self._depth, boundary=mode,
+		                               trim=True)
 		if compute:
 			with ProgressBar():
 				out = data.compute()
 		else:
 			out = data
-		res = xr.DataArray(out, dims=self.obj.dims, coords=self.obj.coords, name=self.obj.name) / weights
-
+		res = 1. / weights  * xr.DataArray(out, dims=self.obj.dims,
+		                                   coords=self.obj.coords,
+		                                   name=self.obj.name)
 		return res.where(mask == 1)
 
 
@@ -321,29 +331,3 @@ class Window(object):
 		else:
 			raise ValueError("This number of dimension is not supported by the plot function")
 
-
-def _infer_arg(arg, dims, default_value=None):
-	"""Private function for inferring the cutoff and window dictionaries"""
-	new_arg = dict()
-	if arg is None:
-		new_arg = {di: default_value for di in dims}
-	elif _utils.is_scalar(arg):
-		new_arg = {di: arg for di in dims}
-	elif _utils.is_dict_like(arg):
-		for di in dims:
-			try:
-				new_arg[di] = arg[di]
-			except:
-				new_arg[di] = default_value
-	elif isinstance(arg, Iterable) and not isinstance(arg, basestring):
-		if len(dims) == 1:
-			new_arg[dims[0]] = arg
-		else:
-			for i, di in enumerate(dims):
-				try:
-					new_arg[di] = arg[i]
-				except:
-					new_arg[di] = default_value
-	else:
-		raise TypeError("This type of option is not supported for the second argument")
-	return new_arg

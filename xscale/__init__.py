@@ -3,7 +3,6 @@ from __future__ import absolute_import, division, print_function
 
 # __all__ = ['filtering', 'pca', 'signal', 'plot', 'spectral']
 
-# from . import filtering
 from . import signal
 from . import spectral
 from .filtering.linearfilters import Window

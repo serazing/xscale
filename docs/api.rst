@@ -20,25 +20,35 @@ Filtering
           Window.plot
 
 
-Spectral tools
-==============
+Spectral estimates
+==================
 
-Spectrum computation
---------------------
+Fast Fourier Transform
+----------------------
 .. autosummary::
-:toctree: generated/
+   :toctree: generated/
 
-       spectral.spectrum.spectrum
-       spectral.spectrum.psd
+       spectral.fft.fft
+       spectral.fft.ps
+       spectral.fft.psd
+
+Spectral tools
+--------------
+.. autosummary::
+   :toctree: generated/
+
+       spectral.tools.plot_spectrum
+       spectral.tools.fit_power_law
+       spectral.tools.plot_power_law
 
 
 Signal tools
-==============
+============
 
 Signal generator
------------------
+----------------
 .. autosummary::
-:toctree: generated/
+   :toctree: generated/
 
       signal.generator.rednoise
       signal.generator.ar

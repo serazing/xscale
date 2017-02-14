@@ -14,9 +14,10 @@ import numpy as np
 # Matlplotlib
 import matplotlib.pyplot as plt
 
-window_list = ['boxcar', 'triang', 'parzen', 'bohman', 'blackman', 'nuttall', 'blackmanharris', 'flattop', 'bartlett',
-               'hanning', 'barthann', 'hamming', 'kaiser', 'gaussian', 'general_gaussian', 'chebwin', 'slepian',
-               'cosine', 'hann', 'get_window']
+window_list = ['boxcar', 'triang', 'parzen', 'bohman', 'blackman', 'nuttall',
+               'blackmanharris', 'flattop', 'bartlett', 'hanning', 'barthann',
+               'hamming', 'kaiser', 'gaussian', 'general_gaussian', 'chebwin',
+               'slepian', 'cosine', 'hann', 'get_window']
 
 sig_xyt = signaltest_xyt()
 sig_xyt_wth_coast = signaltest_xyt(coastlines=True)
@@ -29,22 +30,6 @@ cy = np.linspace(0.01, 0.5, 30)
 cx = np.pi * np.linspace(0, 2, 40)
 coords = {'time': ctime, 'y': cy, 'x': cx}
 dummy_array = xr.DataArray(np.random.random(shape), dims=dims, coords=coords)
-
-
-def test_infer_arg():
-	# Case cutoff is None
-	assert linearfilters._infer_arg(None, dims) == {'time': None, 'y': None, 'x': None}
-	# Case cutoff is a float
-	assert linearfilters._infer_arg(0.01, dims) == {'time': 0.01, 'y': 0.01, 'x': 0.01}
-	# Case cutoff is iterable
-	assert linearfilters._infer_arg([0.01, 0.05, 0.2], dims) == {'time': 0.01, 'y': 0.05, 'x': 0.2}
-	# Case cutoff is iterable
-	assert linearfilters._infer_arg([0.01, 0.05], dims) == {'time': 0.01, 'y': 0.05, 'x': None}
-	# Case cutoff is a dictionnary
-	assert linearfilters._infer_arg({'y': 0.01, 'x': 0.05}, dims) == {'time': None, 'y': 0.01, 'x': 0.05}
-	# Case cutoff is a dictionnary
-	assert (linearfilters._infer_arg({'time': [0.01, 0.05], 'y': 0.05}, dims) ==
-	        {'x': None, 'y': 0.05, 'time': [0.01, 0.05]})
 
 
 def test_set_nyquist():
@@ -66,20 +51,21 @@ def test_wrong_window_name():
 
 def test_wrong_dimension():
 	"""Test if an exception is returned if the dimension is not in the associated array """
-	win = sig_xyt.window
-	with pytest.raises(ValueError, message="Expecting ValueError"):
-		win.set(dims=['z'])
+	w = sig_xyt.window
+	with pytest.warns(UserWarning, message="Expecting a message to warns that"
+	                                       "the user used a wrong dimension"):
+		w.set(dims=['z'])
 
 
 def test_compute_boundary_weights():
 	win2d = sig_xyt_wth_coast.window
-	win2d.set(window='hanning', cutoff=0.05, dims=['y', 'x'], n=[24, 36])
+	win2d.set(window='hanning', cutoff=20, dims=['y', 'x'], n=[24, 36])
 	win2d.boundary_weights(drop_dims=['time'])
 
 
 def test_window_plot1d():
 	win = sig_xyt.window
-	win.set(window='hanning', dims='time', cutoff=1. / 6, dx=1, n=25)
+	win.set(window='hanning', dims='time', cutoff=6., dx=1, n=25)
 	win.plot()
 
 
