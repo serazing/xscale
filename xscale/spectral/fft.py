@@ -16,85 +16,92 @@ import warnings
 
 integer_types = integer_types + (integer,)
 
-def ps(array, nfft=None, dim=None, dx=None, detrend=None, tapering=False,
-       shift=True, chunks=None):
+
+def amplitude(spectrum):
 	"""
-	Compute the Power Spectrum (PS)
+	Return the amplitude spectrum from the Fourier Transform
 
 	Parameters
 	----------
-	array : xarray.DataArray
-		Array from which compute the spectrum
-	dim : str or sequence, optional
-		Dimensions along which to compute the spectrum
-	dx : float or sequence, optional
-		Define the resolution of the dimensions. If not precised,
-		the resolution is computed directly from the coordinates associated
-		to the dimensions.
-	detrend : {None, 'zeromean', 'linear'}, optional
-		Remove the mean or a linear trend before the spectrum computation
-	tapering : bool, optional
-		If True, tapper the data with a Tukey window
-	shift : bool, optional
-		If True, the frequency axes are centered around 0.
-    chunks : int, tuple or dict, optional
-	    Chunk sizes along each dimension, e.g., ``5``, ``(5, 5)`` or
-	    ``{'x': 5, 'y': 5}``
+	spectrum : DataArray
+		A DataArray spectrum computed using xscale.spectral.fft.fft
+	deg : bool, optional
+		If True, return the phase spectrum in degrees. Default is to return
+		the phase spectrum in radians
 
 	Returns
 	-------
-	spectrum : xarray.DataArray
-		Spectral array computed over the different arrays
+	res : DataArray
+		The phase spectrum
 	"""
-	spec = fft(array, nfft=nfft, dim=dim, dx=dx, detrend=detrend,
-	           tapering=tapering, shift=shift, chunks=chunks)
-	power_spectrum = spec.attrs['ps_factor'] * amplitude(spec) ** 2
-	if array.name is None:
+	return abs(spectrum)
+
+
+def phase(spectrum, deg=False):
+	"""
+	Return the phase spectrum from the Fourier Transform
+
+	Parameters
+	----------
+	spectrum : DataArray
+		A DataArray spectrum computed using xscale.spectral.fft.fft
+	deg : bool, optional
+		If True, return the phase spectrum in degrees. Default is to return
+		the phase spectrum in radians
+
+	Returns
+	-------
+	res : DataArray
+		The phase spectrum
+	"""
+	return da.angle(spectrum, deg=deg)
+
+
+def ps(spectrum):
+	"""
+	Return the Power Spectrum (PS) from the Fourier Transform
+
+	Parameters
+	----------
+	spectrum : DataArray
+		A DataArray spectrum computed using xscale.spectral.fft.fft
+
+	Returns
+	-------
+	power_spectrum : DataArray
+		The PS spectrum
+	"""
+	power_spectrum = spectrum.attrs['ps_factor'] * amplitude(spectrum) ** 2
+	if spectrum.name is None:
 		power_spectrum.name = 'PS'
 	else:
-		power_spectrum.name = 'PS_' + array.name
-	power_spectrum.attrs['description'] = ('Power Spectrum (PS) performed '
-	                                       'along dimension(s) %s ' % dim)
+		power_spectrum.name = 'PS_' + spectrum.name
+	power_spectrum.attrs['description'] = 'Power Spectrum (PS)'
 	return power_spectrum
 
 
-def psd(array, nfft=None, dim=None, dx=None, detrend=None, tapering=False,
-        shift=True, chunks=None):
-	"""Compute the Power Spectrum Density (PSD)
+def psd(spectrum):
+	"""
+	Return the Power Spectrum density (PSD) from the Fourier Transform
 
 	Parameters
 	----------
-	array : xarray.DataArray
-		Array from which compute the spectrum
-	dim : str or sequence, optional
-		Dimensions along which to compute the spectrum
-	dx : float or sequence, optional
-		Define the resolution of the dimensions. If not precised,
-		the resolution is computed directly from the coordinates associated
-		to the dimensions.
-	detrend : {None, 'zeromean', 'linear'}, optional
-		Remove the mean or a linear trend before the spectrum computation
-	tapering : bool, optional
-		If True, tapper the data with a Tukey window
-    chunks : int, tuple or dict, optional
-	    Chunk sizes along each dimension, e.g., ``5``, ``(5, 5)`` or
-	    ``{'x': 5, 'y': 5}``
+	spectrum : DataArray
+		A DataArray spectrum computed using xscale.spectral.fft.fft
 
 	Returns
 	-------
-	spectrum : xarray.DataArray
-		Spectral array computed over the different arrays
+	power_spectrum_density : DataArray
+		The PSD spectrum
 	"""
-	spec = fft(array, nfft=nfft, dim=dim, dx=dx, detrend=detrend,
-	           tapering=tapering, shift=shift, chunks=chunks)
-	power_spectrum_density = amplitude(spec) ** 2 * spec.attrs['psd_factor']
-	if array.name is None:
+	power_spectrum_density = (amplitude(spectrum) ** 2 *
+	                          spectrum.attrs['psd_factor'])
+	if spectrum.name is None:
 		power_spectrum_density.name = 'PSD'
 	else:
-		power_spectrum_density.name = 'PSD_' + array.name
+		power_spectrum_density.name = 'PSD_' + spectrum.name
 	power_spectrum_density.attrs['description'] = ('Power Spectrum Density '
-	                                               '(PSD) performed along '
-	                                               'dimension(s) %s ' % dim)
+	                                               '(PSD)')
 	return power_spectrum_density
 
 
@@ -157,46 +164,6 @@ def fft(array, nfft=None, dim=None, dx=None, detrend=None, tapering=False,
 	                    dims=spectrum_dims, name='spectrum')
 	_compute_norm_factor(spec, new_nfft, new_dim, tapering, sym=sym)
 	return spec
-
-
-def amplitude(spectrum):
-	"""
-	Return the amplitude spectrum from the Fourier Transform
-
-	Parameters
-	----------
-	spectrum : DataArray
-		A DataArray spectrum computed using xscale.spectral.fft.fft
-	deg : bool, optional
-		If True, return the phase spectrum in degrees. Default is to return
-		the phase spectrum in radians
-
-	Returns
-	-------
-	res : DataArray
-		The phase spectrum
-	"""
-	return abs(spectrum)
-
-
-def phase(spectrum, deg=False):
-	"""
-	Return the phase spectrum from the Fourier Transform
-
-	Parameters
-	----------
-	spectrum : DataArray
-		A DataArray spectrum computed using xscale.spectral.fft.fft
-	deg : bool, optional
-		If True, return the phase spectrum in degrees. Default is to return
-		the phase spectrum in radians
-
-	Returns
-	-------
-	res : DataArray
-		The phase spectrum
-	"""
-	return da.angle(spectrum, deg=deg)
 
 
 def _fft(array, nfft, dim, dx, shift=False, chunks=None, sym=True):
@@ -279,11 +246,11 @@ def _compute_norm_factor(array, nfft, dim, tapering, sym=True):
 			df = np.diff(array['f_' + di])[0]
 			s1 = nfft[di]
 			s2 = s1
-		if first and not sym:
-			s1 /= 2.
-			s2 /= 2.
 		ps_factor /= s1 ** 2
 		psd_factor /= df * s2
+		if first and not sym:
+			ps_factor *= 2.
+			psd_factor *= 2.
 		first = False
 	array.attrs['ps_factor'] = ps_factor
 	array.attrs['psd_factor'] = psd_factor

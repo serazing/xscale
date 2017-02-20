@@ -126,27 +126,13 @@ def test_spectrum_2d():
 	xfft.fft(chunked_array, dim=['y', 'z']).compute()
 
 
-def test_psd_1d():
-	a = [0, 1, 0, 0]
-	dummy_array = xr.DataArray(a, dims=['x'])
-	chunked_array = dummy_array.chunk(chunks={'x': 2})
-	xfft.psd(chunked_array, dim=['x']).compute()
-
-
-def test_psd_2d():
-	a = np.mgrid[:5, :5, :5][0]
-	dummy_array = xr.DataArray(a, dims=['x', 'y', 'z'])
-	chunked_array = dummy_array.chunk(chunks={'x': 2, 'y': 2, 'z': 2})
-	xfft.psd(chunked_array, dim=['y', 'z']).compute()
-
-
 def test_parserval_real_1d():
 	"""Test if the Parseval theorem is verified"""
-	a = [0, 1, 0, 0]
+	a = [0, 1, 0, 1, 1, 0, 1]
 	dummy_array = xr.DataArray(a, dims=['x'])
 	chunked_array = dummy_array.chunk(chunks={'x': 2})
-	ps = xfft.ps(chunked_array, dim=['x'], detrend='zeromean')
-	assert np.var(a) == np.sum(ps)
+	spec = xfft.fft(chunked_array, dim=['x'], detrend='zeromean')
+	assert np.var(a) == xfft.ps(spec).sum()
 
 
 def test_parserval_complex_1d():
@@ -154,8 +140,8 @@ def test_parserval_complex_1d():
 	a = np.exp(2j * np.pi * np.arange(8) / 8)
 	dummy_array = xr.DataArray(a, dims=['x'])
 	chunked_array = dummy_array.chunk(chunks={'x': 2})
-	ps = xfft.ps(chunked_array, dim=['x'], detrend='zeromean')
-	assert np.var(a) == ps.sum()
+	spec = xfft.fft(chunked_array, dim=['x'], detrend='zeromean')
+	assert np.var(a) == xfft.ps(spec).sum()
 
 
 def test_parserval_complex_2d():
@@ -165,6 +151,6 @@ def test_parserval_complex_2d():
 	a, b, c = np.meshgrid([0, 1, 0, 0], [0, 1j, 1j], [0, 1, 1, 1])
 	dummy_array = xr.DataArray(a * b * c, dims=['x', 'y', 'z'])
 	chunked_array = dummy_array.chunk(chunks={'x': 2, 'y': 2, 'z': 2})
-	ps = xfft.ps(chunked_array, dim=['y', 'z'], detrend='zeromean')
+	spec = xfft.fft(chunked_array, dim=['y', 'z'], detrend='zeromean')
 	assert np.array_equal(np.var(a * b * c, axis=(1, 2)),
-	                      ps.sum(dim=['f_y','f_z']))
+	                      xfft.ps(spec).sum(dim=['f_y','f_z']))
