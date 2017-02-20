@@ -99,7 +99,7 @@ def psd(array, nfft=None, dim=None, dx=None, detrend=None, tapering=False,
 
 
 def fft(array, nfft=None, dim=None, dx=None, detrend=None, tapering=False,
-        shift=False, chunks=None):
+        shift=False, sym=False, chunks=None):
 	"""
 	Compute the spectrum on several dimensions of xarray.DataArray objects using
 	 the Fast Fourrier Transform parrallelized with dask.
@@ -147,12 +147,15 @@ def fft(array, nfft=None, dim=None, dx=None, detrend=None, tapering=False,
 		preproc_array = array
 	if tapering:
 		preproc_array = _tapper(array, new_dim)
+	# If the array is complex, set the symmetry parameters to True
+	if sym is False and np.iscomplexobj(array):
+		sym = True
 	spectrum_array, spectrum_coords, spectrum_dims = \
 		_fft(preproc_array, new_nfft, new_dim, new_dx, shift=shift,
-		     chunks=chunks)
+		     chunks=chunks, sym=sym)
 	spec = xr.DataArray(spectrum_array, coords=spectrum_coords,
 	                    dims=spectrum_dims, name='spectrum')
-	_compute_norm_factor(spec, new_nfft, new_dim, tapering)
+	_compute_norm_factor(spec, new_nfft, new_dim, tapering, sym=sym)
 	return spec
 
 
@@ -196,7 +199,7 @@ def phase(spectrum, deg=False):
 	return da.angle(spectrum, deg=deg)
 
 
-def _fft(array, nfft, dim, dx, shift=False, chunks=None):
+def _fft(array, nfft, dim, dx, shift=False, chunks=None, sym=True):
 	"""This function is for private use only.
 	"""
 	spectrum_array = array.chunk(chunks=chunks).data
@@ -218,7 +221,7 @@ def _fft(array, nfft, dim, dx, shift=False, chunks=None):
 			if dx[di] is None:
 				dx[di] = _utils.get_dx(array, di)
 			#FFT part
-			if first and not np.iscomplexobj(spectrum_array):
+			if first and not sym:
 				# The first FFT is performed on real numbers: the use of rfft is faster
 				spectrum_coords['f_' + di] = np.fft.rfftfreq(nfft[di], dx[di])
 				spectrum_array = \
@@ -256,7 +259,7 @@ def _tapper(array, dim):
 	raise NotImplementedError("The tapering option is not implemented yet.")
 
 
-def _compute_norm_factor(array, nfft, dim, tapering):
+def _compute_norm_factor(array, nfft, dim, tapering, sym=True):
 	"""Compute the normalization factor for Power Spectrum and Power Spectrum Density
 	"""
 	try:
@@ -267,6 +270,7 @@ def _compute_norm_factor(array, nfft, dim, tapering):
 		psd_factor = array.attrs['psd_factor']
 	except KeyError:
 		psd_factor = 1.
+	first = True
 	for di in dim:
 		if tapering:
 			raise NotImplementedError("The tapering option is not implemented "
@@ -275,8 +279,12 @@ def _compute_norm_factor(array, nfft, dim, tapering):
 			df = np.diff(array['f_' + di])[0]
 			s1 = nfft[di]
 			s2 = s1
+		if first and not sym:
+			s1 /= 2.
+			s2 /= 2.
 		ps_factor /= s1 ** 2
 		psd_factor /= df * s2
+		first = False
 	array.attrs['ps_factor'] = ps_factor
 	array.attrs['psd_factor'] = psd_factor
 

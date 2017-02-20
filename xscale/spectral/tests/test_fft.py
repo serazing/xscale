@@ -14,7 +14,8 @@ def test_fft_real_1d():
 	dummy_array = xr.DataArray(a, dims=['x'])
 	chunked_array = dummy_array.chunk(chunks={'x': 2})
 	spectrum_array, spectrum_coords, spectrum_dims = \
-		xfft._fft(chunked_array, nfft={'x': 4}, dim=['x'], dx={'x': 0.01})
+		xfft._fft(chunked_array, nfft={'x': 4}, dim=['x'], dx={'x': 0.01},
+		          sym=False)
 	assert np.array_equal(np.asarray(spectrum_array), np.fft.rfft(a))
 	assert np.array_equal(spectrum_coords['f_x'], np.fft.rfftfreq(4, d=0.01))
 	assert 'f_x' in spectrum_dims
@@ -41,7 +42,7 @@ def test_fft_real_2d():
 	chunked_array = dummy_array.chunk(chunks={'x': 2, 'y': 2, 'z': 2})
 	spectrum_array, spectrum_coords, spectrum_dims = \
 		xfft._fft(chunked_array, nfft={'y': 14, 'z': 18}, dim=['y', 'z'],
-		          dx={'y': 0.01, 'z': 0.02})
+		          dx={'y': 0.01, 'z': 0.02}, sym=False)
 	assert np.array_equal(np.asarray(spectrum_array),
 	                      np.fft.rfftn(a, axes=(2, 1)))
 	assert np.array_equal(spectrum_coords['f_y'], np.fft.rfftfreq(14, d=0.01))
@@ -74,7 +75,8 @@ def test_fft_real_3d():
 	chunked_array = dummy_array.chunk(chunks={'x': 2, 'y': 2, 'z': 2})
 	spectrum_array, spectrum_coords, spectrum_dims = \
 		xfft._fft(chunked_array, nfft={'x': 11, 'y': 14, 'z': 18},
-		          dim=['x', 'y', 'z'], dx={'x':12, 'y': 0.01, 'z': 0.02})
+		          dim=['x', 'y', 'z'], dx={'x':12, 'y': 0.01, 'z': 0.02},
+		          sym=False)
 	assert np.array_equal(np.asarray(spectrum_array),
 	                      np.fft.rfftn(a, axes=(1, 2, 0)))
 	assert np.array_equal(spectrum_coords['f_x'], np.fft.rfftfreq(11, d=12))
