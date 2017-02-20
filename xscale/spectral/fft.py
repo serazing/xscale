@@ -16,8 +16,6 @@ import warnings
 
 integer_types = integer_types + (integer,)
 
-import pytest
-
 def ps(array, nfft=None, dim=None, dx=None, detrend=None, tapering=False,
        shift=True, chunks=None):
 	"""
@@ -50,8 +48,7 @@ def ps(array, nfft=None, dim=None, dx=None, detrend=None, tapering=False,
 	"""
 	spec = fft(array, nfft=nfft, dim=dim, dx=dx, detrend=detrend,
 	           tapering=tapering, shift=shift, chunks=chunks)
-	power_spectrum = (spec * da.conj(spec)).real * spec.attrs['ps_factor']
-	#pytest.set_trace()
+	power_spectrum = spec.attrs['ps_factor'] * amplitude(spec) ** 2
 	if array.name is None:
 		power_spectrum.name = 'PS'
 	else:
@@ -90,9 +87,7 @@ def psd(array, nfft=None, dim=None, dx=None, detrend=None, tapering=False,
 	"""
 	spec = fft(array, nfft=nfft, dim=dim, dx=dx, detrend=detrend,
 	           tapering=tapering, shift=shift, chunks=chunks)
-	#TODO: Make the correct normalization for the power spectrum and check with the Parseval theorem
-	power_spectrum_density = ((spec * da.conj(spec)).real *
-	                          spec.attrs['psd_factor'])
+	power_spectrum_density = amplitude(spec) ** 2 * spec.attrs['psd_factor']
 	if array.name is None:
 		power_spectrum_density.name = 'PSD'
 	else:
@@ -161,6 +156,46 @@ def fft(array, nfft=None, dim=None, dx=None, detrend=None, tapering=False,
 	return spec
 
 
+def amplitude(spectrum):
+	"""
+	Return the amplitude spectrum from the Fourier Transform
+
+	Parameters
+	----------
+	spectrum : DataArray
+		A DataArray spectrum computed using xscale.spectral.fft.fft
+	deg : bool, optional
+		If True, return the phase spectrum in degrees. Default is to return
+		the phase spectrum in radians
+
+	Returns
+	-------
+	res : DataArray
+		The phase spectrum
+	"""
+	return abs(spectrum)
+
+
+def phase(spectrum, deg=False):
+	"""
+	Return the phase spectrum from the Fourier Transform
+
+	Parameters
+	----------
+	spectrum : DataArray
+		A DataArray spectrum computed using xscale.spectral.fft.fft
+	deg : bool, optional
+		If True, return the phase spectrum in degrees. Default is to return
+		the phase spectrum in radians
+
+	Returns
+	-------
+	res : DataArray
+		The phase spectrum
+	"""
+	return da.angle(spectrum, deg=deg)
+
+
 def _fft(array, nfft, dim, dx, shift=False, chunks=None):
 	"""This function is for private use only.
 	"""
@@ -226,11 +261,11 @@ def _compute_norm_factor(array, nfft, dim, tapering):
 	"""
 	try:
 		ps_factor = array.attrs['ps_factor']
-	except:
+	except KeyError:
 		ps_factor = 1.
 	try:
 		psd_factor = array.attrs['psd_factor']
-	except:
+	except KeyError:
 		psd_factor = 1.
 	for di in dim:
 		if tapering:
