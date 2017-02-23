@@ -112,18 +112,20 @@ def test_fft_warning():
 		xfft.fft(chunked_array, dim=['x', 'y', 'time'])
 
 
-def test_spectrum_1d():
+@pytest.mark.parametrize("tapering",  [True, False])
+def test_spectrum_1d(tapering):
 	a = [0, 1, 0, 0]
 	dummy_array = xr.DataArray(a, dims=['x'])
 	chunked_array = dummy_array.chunk(chunks={'x': 2})
-	xfft.fft(chunked_array, dim=['x']).compute()
+	xfft.fft(chunked_array, dim=['x'], tapering=tapering).compute()
 
 
-def test_spectrum_2d():
+@pytest.mark.parametrize("tapering",  [True, False])
+def test_spectrum_2d(tapering):
 	a = np.mgrid[:5, :5, :5][0]
 	dummy_array = xr.DataArray(a, dims=['x', 'y', 'z'])
 	chunked_array = dummy_array.chunk(chunks={'x': 2, 'y': 2, 'z': 2})
-	xfft.fft(chunked_array, dim=['y', 'z']).compute()
+	xfft.fft(chunked_array, dim=['y', 'z'], tapering=tapering).compute()
 
 
 def test_parserval_real_1d():

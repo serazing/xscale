@@ -9,15 +9,22 @@ from xscale.signal.generator import signaltest_xyt
 import pandas as pd
 # Xarray
 import xarray as xr
+# Dask
+import dask.array as da
 # Numpy
 import numpy as np
+# Scipy
+import scipy.signal as sig
 # Matlplotlib
 import matplotlib.pyplot as plt
 
 window_list = ['boxcar', 'triang', 'parzen', 'bohman', 'blackman', 'nuttall',
                'blackmanharris', 'flattop', 'bartlett', 'hanning', 'barthann',
-               'hamming', 'kaiser', 'gaussian', 'general_gaussian', 'chebwin',
-               'slepian', 'cosine', 'hann', 'get_window']
+               'hamming', ('kaiser', 2), ('tukey', 0.5)]
+               #'gaussian',
+               #'general_gaussian', 'chebwin',
+               #'slepian', 'cosine', 'hann']
+
 
 sig_xyt = signaltest_xyt()
 sig_xyt_wth_coast = signaltest_xyt(coastlines=True)
@@ -35,7 +42,8 @@ dummy_array = xr.DataArray(np.random.random(shape), dims=dims, coords=coords)
 def test_set_nyquist():
 	w = dummy_array.window
 	w.set(dims=['y', 'x'])
-	assert w.fnyq == {'x': 1. / (2. * (cx[1] - cx[0])), 'y': 1. / (2. * (cy[1] - cy[0]))}
+	assert w.fnyq == {'x': 1. / (2. * (cx[1] - cx[0])),
+	                  'y': 1. / (2. * (cy[1] - cy[0]))}
 
 
 def test_init_window():
@@ -57,15 +65,17 @@ def test_wrong_dimension():
 		w.set(dims=['z'])
 
 
-def test_compute_boundary_weights():
+@pytest.mark.parametrize("window",  window_list)
+def test_compute_boundary_weights(window):
 	win2d = sig_xyt_wth_coast.window
-	win2d.set(window='hanning', cutoff=20, dims=['y', 'x'], n=[24, 36])
+	win2d.set(window=window, cutoff=20, dims=['y', 'x'], n=[24, 36])
 	win2d.boundary_weights(drop_dims=['time'])
 
 
-def test_window_plot1d():
+@pytest.mark.parametrize("window",  window_list)
+def test_window_plot1d(window):
 	win = sig_xyt.window
-	win.set(window='hanning', dims='time', cutoff=6., dx=1, n=25)
+	win.set(window=window, dims='time', cutoff=6., dx=1, n=25)
 	win.plot()
 
 
@@ -73,3 +83,10 @@ def test_window_plot2d():
 	win = sig_xyt.window
 	win.set(window='hanning', dims='time', n=12)
 	win.plot()
+
+@pytest.mark.parametrize("window",  window_list)
+def test_tapper_1d(window):
+	dummy_array = xr.DataArray(da.ones((10), chunks=(3,)), dims='x')
+	win = dummy_array.window
+	win.set(window=window, dims='x')
+	assert np.array_equal(win.tapper(), sig.get_window(window, 10))

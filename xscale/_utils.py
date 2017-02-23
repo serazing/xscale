@@ -26,6 +26,12 @@ def is_iterable(value):
 	return isinstance(value, Iterable) and not isinstance(value, basestring)
 
 
+def homogeneous_type(seq):
+    iseq = iter(seq)
+    first_type = type(next(iseq))
+    return first_type if all( (type(x) is first_type) for x in iseq ) else False
+
+
 def infer_n_and_dims(obj, n, dims):
 	"""Logic for setting the window properties"""
 	#TODO: Finish this function
@@ -105,12 +111,7 @@ def infer_arg(arg, dims, default_value=None):
 			except TypeError:
 				new_arg[dims[di]] = arg
 	elif isinstance(arg, Iterable) and not isinstance(arg, basestring):
-		if len(dims) == 1:
-			try:
-				new_arg[dims[0]] = arg[0]
-			except TypeError:
-				new_arg[dims[0]] = arg
-		else:
+		if homogeneous_type(arg):
 			for i, di in enumerate(dims):
 				try:
 					new_arg[di] = arg[i]
@@ -118,6 +119,20 @@ def infer_arg(arg, dims, default_value=None):
 					new_arg[di] = default_value
 				except TypeError:
 					new_arg[dims[di]] = arg
+			#if not len(dims) == len(arg):
+			#	if len(arg) == 1:
+			#	new_arg[dims[0]] = arg[0]
+			#else:
+			#	new_arg[dims[0]] = arg
+			#except TypeError:
+			#	new_arg[dims[0]] = arg
+		else:
+			for i, di in enumerate(dims):
+				try:
+					new_arg[di] = arg
+				except TypeError:
+					new_arg[dims[di]] = arg
+
 	else:
 		raise TypeError("This type of option is not supported for the second "
 		                "argument")
@@ -146,6 +161,7 @@ def get_dx(obj, dim, freq='s'):
 		dx /= np.timedelta64(1, freq)
 	else:
 		dx = np.diff(x)
-	if not np.allclose(dx, dx[0]):
-		warnings.warn("Coordinate %s is not evenly spaced" % dim)
+	#TODO: Small issue this the function commented below
+	#if not np.allclose(dx, dx[0]):
+	#	warnings.warn("Coordinate %s is not evenly spaced" % dim)
 	return dx[0]

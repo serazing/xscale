@@ -39,6 +39,12 @@ def test_is_iterable():
 	assert not _utils.is_iterable('john_doe')
 
 
+def test_homogeneous_type():
+	assert _utils.homogeneous_type((12, 54))
+	assert _utils.homogeneous_type(('string1', 'string2'))
+	assert not _utils.homogeneous_type(('string', 12))
+
+
 def test_infer_n_and_dims():
 	# Case n and dims are None -> returns all dimensions and all dimensions
 	assert _utils.infer_n_and_dims(array, None, None) == (shape, dims)
@@ -96,6 +102,12 @@ def test_infer_arg():
 	                        dims) == {'x': None, 'y': 0.05,
 	                                  'time': [0.01, 0.05]}
 	assert _utils.infer_arg([1,], 'x') == {'x': 1}
+
+	assert _utils.infer_arg(('name', 36), 'x') == {'x': ('name', 36)}
+	assert _utils.infer_arg({'x': ('name', 36)}, ('y', 'x')) == {'y': None,
+	                                                       'x': ('name', 36)}
+	assert _utils.infer_arg(('name', 36), ('y', 'x')) == {'y': ('name', 36),
+	                                                       'x': ('name', 36)}
 
 def test_get_dx():
 	assert _utils.get_dx(array, 'x') == np.pi

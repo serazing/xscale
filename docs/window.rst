@@ -26,7 +26,8 @@ The ``Window`` object is implemented in py:module:`xscale.window`, which uses
     foo = xgen.signaltest_xyt()
     print foo
 
-The ``Window`` object may be simply linked to the latter ``DataArray`` using the attribute ``.window``:
+The ``Window`` object may be simply linked to the latter ``DataArray`` using
+the attribute ``.window``:
 
 .. ipython:: python
 

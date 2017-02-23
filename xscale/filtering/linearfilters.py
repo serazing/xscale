@@ -12,6 +12,7 @@ import scipy.signal as sig
 import scipy.ndimage as im
 # Xarray and dask
 from dask.diagnostics import ProgressBar
+import dask.array as da
 import xarray as xr
 # Matplotlib
 import pylab as plt
@@ -113,6 +114,7 @@ class Window(object):
 		# Build the multi-dimensional window: the hard part
 		for di in self.obj.dims:
 			axis_num = self.obj.get_axis_num(di)
+			axis_chunk = self.obj.chunks[axis_num][0]
 			if di in self.dims:
 				self._depth[axis_num] = int(self.order[di] / 2)
 				if self.dx[di] is None:
@@ -122,20 +124,26 @@ class Window(object):
 				# Compute the coefficients associated to the window using scipy functions
 				if self.cutoff[di] is None:
 					# Use get_window if the cutoff is undefined
-					coefficients1d = sig.get_window(self.window[di], self.order[di])
+					coefficients1d = sig.get_window(self.window[di],
+					                                self.order[di])
 				else:
 					# Use firwin if the cutoff is defined
 					coefficients1d = sig.firwin(self.order[di],
 					                            1. / self.cutoff[di],
 					                            window=self.window[di],
 					                            nyq=self.fnyq[di])
+				coefficients1d_dask = da.from_array(coefficients1d,
+				                                    chunks=axis_chunk)
 				# Normalize the coefficients
-				self.coefficients = np.outer(self.coefficients, coefficients1d)
+				#self.coefficients = np.outer(self.coefficients, coefficients1d)
+				self.coefficients = (np.expand_dims(self.coefficients, axis=-1)
+				                     * coefficients1d_dask)
 				# TODO: Try to add the rotational convention using meshgrid, in complement to the outer product
 				# TODO: check the order of dimension of the kernel compared to the DataArray/DataSet objects
 				self.coefficients = self.coefficients.squeeze()
 			else:
-				self.coefficients = np.expand_dims(self.coefficients, axis=axis_num)
+				self.coefficients = np.expand_dims(self.coefficients,
+				                                   axis=axis_num)
 
 
 	def convolve(self, mode='reflect', weights=None, compute=True):
@@ -199,14 +207,10 @@ class Window(object):
 		Notes
 		-----
 		"""
-		# TODO: Write the function
-		raise NotImplementedError
-		if compute:
-			with ProgressBar():
-				out = data.compute()
-		else:
-			out = data
-		res = xr.DataArray(out, dims=self.obj.dims, coords=self.obj.coords, name=self.obj.name)
+		# TODO: Improve this function to implement multitapper
+		res = xr.DataArray(self.coefficients * self.obj.data,
+		                   dims=self.obj.dims, coords=self.obj.coords,
+		                   name=self.obj.name)
 		return res
 
 

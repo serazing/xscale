@@ -219,11 +219,13 @@ def _detrend(array, dim):
 	                          "yet.")
 
 
-def _tapper(array, dim):
+def _tapper(array, dim, window=('tukey', 0.25)):
 	"""Perform a tappering of the data over the specified dimensions with a tukey window
 	"""
 	# TODO: implement the tapering function
-	raise NotImplementedError("The tapering option is not implemented yet.")
+	win = array.window
+	win.set(dims=dim, window=window)
+	return win.tapper()
 
 
 def _compute_norm_factor(array, nfft, dim, tapering, sym=True):
@@ -239,11 +241,13 @@ def _compute_norm_factor(array, nfft, dim, tapering, sym=True):
 		psd_factor = 1.
 	first = True
 	for di in dim:
+		df = np.diff(array['f_' + di])[0]
 		if tapering:
-			raise NotImplementedError("The tapering option is not implemented "
-			                          "yet.")
+			#TODO: The correct normalization by computing the weights of window
+			# used for the detrending
+			s1 = nfft[di]
+			s2 = s1
 		else:
-			df = np.diff(array['f_' + di])[0]
 			s1 = nfft[di]
 			s2 = s1
 		ps_factor /= s1 ** 2
