@@ -64,7 +64,7 @@ Index
 
 **API**
 
-* :doc:`API`
+* :doc:`api`
 
 .. toctree::
    :maxdepth: 1

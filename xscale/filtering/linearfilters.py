@@ -54,18 +54,9 @@ class Window(object):
 		return "{klass} [{attrs}]".format(klass=self.__class__.__name__,
 		                                  attrs=', '.join(attrs))
 
-	def set(self, n=None, dims=None, cutoff=None, dx=None, window='boxcar',
+	def set(self, n=None, dim=None, cutoff=None, dx=None, window='boxcar',
 	        chunks=None):
-		"""
-		Set the different properties of the current window
-
-        If the variable associated to the window object is a non-dask array,
-        it will be converted to dask array. If it's a dask array, it will be
-        rechunked to the given chunksizes.
-
-        If neither chunks is not provided for one or more dimensions, chunk
-        sizes along that dimension will not be updated; non-dask arrays will be
-        converted into dask arrays with a single block.
+		"""Set the different properties of the current window.
 
 		Parameters
 		----------
@@ -74,7 +65,7 @@ class Window(object):
 			or through the ``dims`` parameters. If ``n`` is ``None``, the window
 			order is set to the total size of the corresponding dimensions
 			according to the ``dims`` parameters
-		dims : str or sequence, optional
+		dim : str or sequence, optional
 			Names of the dimension associated to the window. If ``dims`` is
 			None, all the dimensions are taken.
 		cutoff : float, sequence or dict, optional
@@ -95,7 +86,7 @@ class Window(object):
 		"""
 
 		# Check and interpret n and dims parameters
-		self.n, self.dims = _utils.infer_n_and_dims(self._obj, n, dims)
+		self.n, self.dims = _utils.infer_n_and_dims(self._obj, n, dim)
 		self.ndim = len(self.dims)
 		self.order = {di: nbw for nbw, di in zip(self.n, self.dims)}
 		self.cutoff = _utils.infer_arg(cutoff, self.dims)
@@ -174,9 +165,11 @@ class Window(object):
 			weights = im.convolve(mask.astype(float), coeffs, mode=mode)
 		filled_data = self.obj.fillna(0.).data
 
-		def conv(x):
-			xf = im.convolve(x, coeffs, mode=mode)
-			return xf
+		#def conv(x):
+		#	xf = im.convolve(x, coeffs, mode=mode)
+		#	return xf
+
+		conv = lambda x: im.convolve(x, coeffs, mode=mode)
 
 		data = filled_data.map_overlap(conv, depth=self._depth, boundary=mode,
 		                               trim=True)

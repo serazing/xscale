@@ -34,23 +34,26 @@ the attribute ``.window``:
     import xscale
     w = foo.window
 
+
 Defining
 --------
 
-The py:method:`xscale.Window.set` method takes optionally five parameters:
+The py:method:`xscale.Window.set` method takes optionally six parameters:
 
-- ``n``: the size of the window
-- ``dims``: dimension names for each axis (e.g., ``('x', 'y', 'z')``).
-- ``cutoff``: the cutoff of the window, used for defining window for linear
- filtering.
-- ``window``: the name of the window used, and other window parameters passed
- through a tuple
-- ``chunk``: set or modify the chunks of the py:module:`dask.array` object
- associated to the py:module:`xarray.DataArray`
+ - ``n``: the size of the window
+ - ``dims``: dimension names for each axis (e.g., ``('x', 'y', 'z')``).
+ - ``dx``: the sampling along the dimensions
+ - ``cutoff``: the cutoff of the window, used for defining window for linear
+   filtering.
+ - ``window``: the name of the window used, and other window parameters passed
+   through a tuple
+ - ``chunk``: set or modify the chunks of the py:module:`dask.array` object
+   associated to the py:module:`xarray.DataArray`
 
 .. note::
 
-There are no needs to define ``dims`` if the other parameters are passed as dictionaries.
+   There is no need to define ``dims`` if the other parameters are passed as
+   dictionaries.
 
 
 .. ipython:: python
@@ -63,7 +66,7 @@ Once a ``Window`` is set, one can check the status of the ``Window`` usìng
 
     print w
 
-If the ``cutoff` parameter is not defined the
+If the ``cutoff`` parameter is not defined the
 py:method:`scipy.signal.get_window` is used to build the window along each
 dimensions passed through the other parameters.
 
@@ -140,8 +143,8 @@ such a normalization is applied by computing the low-passed data :math:`Y_{LP}`:
    Y_{LP} = \frac{W * Y}{W * M},
 
 
-where :math:`Y` is the raw data, :math:`W` the window used, and :math:`M a mask that is one for valid data and zero for
-    missing values.
+where :math:`Y` is the raw data, :math:`W` the window used, and :math:`M` a
+   mask that is 1 for valid data and 0 for missing values.
 
 
 If the keyword paramter ``compute`` is set to ``True``, the computation will be performed and and progress bar

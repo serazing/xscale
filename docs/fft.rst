@@ -18,10 +18,10 @@ to estimate a multi-dimensional spectrum.
 
 .. note::
 
-   * Only the `zeromean` option is available to detrend the data before FFT
-   computation.
-   * The `tapering` option is not implemented yet. The FFT computation may
-   therefore induce substantial ringing effects.
+   - Only the `zeromean` option is available to detrend the data before FFT
+     computation.
+   - The `tapering` option is not implemented yet. The FFT computation may
+     therefore induce substantial ringing effects.
 
 
 Multi-tapering estimate

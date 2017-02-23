@@ -107,9 +107,8 @@ def psd(spectrum):
 
 def fft(array, nfft=None, dim=None, dx=None, detrend=None, tapering=False,
         shift=False, sym=False, chunks=None):
-	"""
-	Compute the spectrum on several dimensions of xarray.DataArray objects using
-	 the Fast Fourrier Transform parrallelized with dask.
+	"""Compute the spectrum on several dimensions of xarray.DataArray objects
+	using the Fast Fourrier Transform parrallelized with dask.
 
 	Parameters
 	----------
@@ -224,7 +223,7 @@ def _tapper(array, dim, window=('tukey', 0.25)):
 	"""
 	# TODO: implement the tapering function
 	win = array.window
-	win.set(dims=dim, window=window)
+	win.set(dim=dim, window=window)
 	return win.tapper()
 
 
