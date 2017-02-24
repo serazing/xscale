@@ -67,23 +67,22 @@ def test_wrong_dimension():
 
 @pytest.mark.parametrize("window",  window_list)
 def test_compute_boundary_weights(window):
-	pytest.skip()
 	win2d = sig_xyt_wth_coast.window
 	win2d.set(window=window, cutoff=20, dim=['y', 'x'], n=[24, 36])
 	win2d.boundary_weights(drop_dims=['time'])
 
 
-@pytest.mark.parametrize("window",  window_list)
-def test_window_plot1d(window):
-	win = sig_xyt.window
-	win.set(window=window, dim='time', cutoff=6., dx=1, n=25)
-	win.plot()
+#@pytest.mark.parametrize("window",  window_list)
+#def test_window_plot1d(window):
+#	win = sig_xyt.window
+#	win.set(window=window, dim='time', cutoff=6., dx=1, n=25)
+#	win.plot()
 
 
-def test_window_plot2d():
-	win = sig_xyt.window
-	win.set(window='hanning', dim='time', n=12)
-	win.plot()
+#def test_window_plot2d():
+#	win = sig_xyt.window
+#	win.set(window='hanning', dim='time', n=12)
+#	win.plot()
 
 
 @pytest.mark.parametrize("window",  window_list)

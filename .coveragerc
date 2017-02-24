@@ -1,2 +1,5 @@
 [run]
-omit = oocgcm/test/*
+omit =
+    */test_*.py
+source =
+    xscale
