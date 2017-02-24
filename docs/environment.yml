@@ -1,12 +1,15 @@
-name: xscale
+name: xscale-doc
 dependencies:
   - python=2.7
-  - numpy=1.10
-  - pandas=0.17.1
-  - numpydoc=0.5
-  - dask=0.7.5
-  - ipython=4.0.1
-  - sphinx=1.2.3
+  - ipython
+  - numpy
+  - scipy
+  - pandas
+  - numpydoc
+  - dask
+  - ipython
+  - sphinx
   - graphviz
   - sphinx_rtd_theme
-  - ipython
+  - matplotlib
+  - seaborn

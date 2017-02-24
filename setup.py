@@ -4,33 +4,30 @@ from os.path import exists
 from setuptools import setup
 import versioneer
 
-extras_require = {
-  'array': ['numpy', 'toolz >= 0.7.2'],
-  'bag': ['cloudpickle >= 0.2.1', 'toolz >= 0.7.2', 'partd >= 0.3.6'],
-  'dataframe': ['numpy', 'pandas >= 0.18.0', 'toolz >= 0.7.2',
-                'partd >= 0.3.5', 'cloudpickle >= 0.2.1'],
-  'distributed': ['distributed >= 1.14', 's3fs >= 0.0.7'],
-  'imperative': ['toolz >= 0.7.2'],
-}
+DISTNAME = 'xarray'
+PACKAGES = ['xscale', 'xscale.filtering', 'xscale.signal', 'xscale.spectral']
+TESTS = [p + '.tests' for p in PACKAGES]
+INSTALL_REQUIRES = ['numpy >= 1.7', 'pandas >= 0.15.0', 'xarray >=0.8'
+                    'dask >=0.12.0', 'numba >=  0.30.0', 'scipy >=  0.18.0']
+TESTS_REQUIRE = ['pytest >= 2.7.1']
 
-extras_require['complete'] = sorted(set(sum(extras_require.values(), [])))
+URL = 'http://github.com/serazing/xscale'
+AUTHOR = 'Guillaume Serazin'
+AUTHOR_EMAIL = 'guillaume.serazin@legos.obs-mip.fr'
+LICENSE = 'Apache'
+DESCRIPTION = 'Signal processing tools based on xarray and dask'
 
-packages = ['xscale', 'xscale.filtering', 'xscale.signal', 'xscale.spectral']
-
-tests = [p + '.tests' for p in packages]
-
-
-setup(name='xscale',
+setup(name=DISTNAME,
       version=versioneer.get_version(),
       cmdclass=versioneer.get_cmdclass(),
-      description='Signal processing tools to analyze spatio-temporal scales',
-      url='http://github.com/serazing/xscale',
-      maintainer='Guillaume Serazin',
-      maintainer_email='guillaume.serazin@legos.obs-mip.fr',
-      license='BSD',
+      description=DESCRIPTION,
+      url=URL,
+      author=AUTHOR,
+      author_email=AUTHOR_EMAIL,
+      license=LICENSE,
       keywords='signal processing',
-      packages=packages + tests,
+      packages=PACKAGES + TESTS,
       long_description=(open('README.rst').read() if exists('README.rst')
                         else ''),
-      extras_require=extras_require,
+      install_requires=INSTALL_REQUIRES,
       zip_safe=False)
