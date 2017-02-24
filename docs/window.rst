@@ -41,7 +41,7 @@ Defining
 The py:method:`xscale.Window.set` method takes optionally six parameters:
 
  - ``n``: the size of the window
- - ``dims``: dimension names for each axis (e.g., ``('x', 'y', 'z')``).
+ - ``dim``: dimension names for each axis (e.g., ``('x', 'y', 'z')``).
  - ``dx``: the sampling along the dimensions
  - ``cutoff``: the cutoff of the window, used for defining window for linear
    filtering.
@@ -52,7 +52,7 @@ The py:method:`xscale.Window.set` method takes optionally six parameters:
 
 .. note::
 
-   There is no need to define ``dims`` if the other parameters are passed as
+   There is no need to define ``dim`` if the other parameters are passed as
    dictionaries.
 
 
@@ -72,7 +72,7 @@ dimensions passed through the other parameters.
 
 .. ipython:: python
 
-    w.set(n=15, dims='time', window='boxcar')
+    w.set(n=15, dim='time', window='boxcar')
     w.plot()
     @savefig boxcar_time_n15.png
     plt.show()
@@ -85,7 +85,7 @@ in respect of the window properties:
 
     cutoff_10d = 10 # A 10-day frequency in seconds
     dx_1d = 1 # Define the sampling period (one day)
-    w.set(n=20, dims='time', cutoff=cutoff_10d, dx=dx_1d, window='boxcar')
+    w.set(n=20, dim='time', cutoff=cutoff_10d, dx=dx_1d, window='boxcar')
     w.plot()
     @savefig boxcar_time_n20_10d.png
     plt.show()
@@ -112,7 +112,7 @@ For one-dimensional window:
 
 .. ipython:: python
 
-    w.set(n=15, dims='time', window='hanning')
+    w.set(n=15, dim='time', window='hanning')
     w.plot()
     @savefig hanning_time_n15.png
     plt.show()
