@@ -4,12 +4,13 @@ dependencies:
   - ipython
   - numpy
   - scipy
+  - xarray
   - pandas
-  - numpydoc
   - dask
-  - ipython
-  - sphinx
-  - graphviz
-  - sphinx_rtd_theme
+  - numba
   - matplotlib
   - seaborn
+  - graphviz
+  - sphinx
+  - sphinx_rtd_theme
+  - numpydoc
