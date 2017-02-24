@@ -111,8 +111,8 @@ def test_infer_arg():
 
 def test_get_dx():
 	assert _utils.get_dx(array, 'x') == np.pi
-	with pytest.warns(UserWarning):
-		_utils.get_dx(array, 'y')
+	#with pytest.warns(UserWarning):
+	#	_utils.get_dx(array, 'y')
 	assert _utils.get_dx(array, 'time') == (29 * 24 * 3600.)
 	assert _utils.get_dx(array, 'time', freq='h') == (29 * 24)
 	assert _utils.get_dx(array, 'time', freq='D') == (29)

@@ -120,7 +120,7 @@ def fft(array, nfft=None, dim=None, dx=None, detrend=None, tapering=False,
 		Define the resolution of the dimensions. If not precised,
 		the resolution is computed directly from the coordinates associated
 		to the dimensions.
-	detrend : {None, 'zeromean', 'linear'}, optional
+	detrend : {None, 'mean', 'linear'}, optional
 		Remove the mean or a linear trend before the spectrum computation
 	tapering : bool, optional
 		If True, tapper the data with a Tukey window
@@ -130,8 +130,9 @@ def fft(array, nfft=None, dim=None, dx=None, detrend=None, tapering=False,
 
 	Returns
 	-------
-	res :
-		A new
+	res : DataArray
+		A multi-dimensional complex DataArray with the corresponding
+		dimensions transformed in the Fourier space.
 
 	Notes
 	-----
@@ -142,7 +143,7 @@ def fft(array, nfft=None, dim=None, dx=None, detrend=None, tapering=False,
 	temp_nfft, new_dim = _utils.infer_n_and_dims(array, nfft, dim)
 	new_nfft = _utils.infer_arg(temp_nfft, dim)
 	new_dx = _utils.infer_arg(dx, dim)
-	if detrend is 'zeromean':
+	if detrend is 'mean':
 		# Tackling the issue of the dask graph by computing and loading the
 		# mean here
 		mean_array = array.mean(dim=new_dim).load()
@@ -204,7 +205,6 @@ def _fft(array, nfft, dim, dx, shift=False, chunks=None, sym=True):
 				if shift is True:
 					spectrum_coords['f_' + di] = \
 						np.fft.fftshift(spectrum_coords['f_' + di])
-					#TODO: np.fft.fftshift impose to compute the dask graph !
 					spectrum_array = _fftshift(spectrum_array, axes=axis_num)
 			first = False
 		else:
@@ -221,7 +221,7 @@ def _detrend(array, dim):
 def _tapper(array, dim, window=('tukey', 0.25)):
 	"""Perform a tappering of the data over the specified dimensions with a tukey window
 	"""
-	# TODO: implement the tapering function
+	# TODO: improve the tapering function by multitapering
 	win = array.window
 	win.set(dim=dim, window=window)
 	return win.tapper()
@@ -242,14 +242,16 @@ def _compute_norm_factor(array, nfft, dim, tapering, sym=True):
 	for di in dim:
 		df = np.diff(array['f_' + di])[0]
 		if tapering:
-			#TODO: The correct normalization by computing the weights of window
-			# used for the detrending
+			#TODO: Make a correct normalization by computing the weights of
+			# window used for the tapering
 			s1 = nfft[di]
 			s2 = s1
 		else:
 			s1 = nfft[di]
 			s2 = s1
 		ps_factor /= s1 ** 2
+		#TODO: check if the normalization for the PSD is 1 / (df * nfft) as used
+		# in the following
 		psd_factor /= df * s2
 		if first and not sym:
 			ps_factor *= 2.
@@ -260,26 +262,28 @@ def _compute_norm_factor(array, nfft, dim, tapering, sym=True):
 
 
 def _fftshift(x, axes=None):
-    if axes is None:
-        axes = list(range(x.ndim))
-    elif isinstance(axes, integer_types):
-        axes = (axes,)
-    for k in axes:
-        n = x.shape[k]
-        p2 = (n + 1) // 2
-        mylist = np.concatenate((np.arange(p2, n), np.arange(p2)))
-        x = da.take(x, mylist, k)
-    return x
+	"""Similar to numpy.fft.fttshift but based on dask.array"""
+	if axes is None:
+	    axes = list(range(x.ndim))
+	elif isinstance(axes, integer_types):
+	    axes = (axes,)
+	for k in axes:
+	    n = x.shape[k]
+	    p2 = (n + 1) // 2
+	    mylist = np.concatenate((np.arange(p2, n), np.arange(p2)))
+	    x = da.take(x, mylist, k)
+	return x
 
 
 def _ifftshift(x, axes=None):
-    if axes is None:
-        axes = list(range(x.ndim))
-    elif isinstance(axes, integer_types):
-        axes = (axes,)
-    for k in axes:
-        n = x.shape[k]
-        p2 = n - (n + 1) // 2
-        mylist = np.concatenate((np.arange(p2, n), np.arange(p2)))
-        x = da.take(x, mylist, k)
+	"""Similar to numpy.fft.ifttshift but based on dask.array"""
+	if axes is None:
+	    axes = list(range(x.ndim))
+	elif isinstance(axes, integer_types):
+	    axes = (axes,)
+	for k in axes:
+	    n = x.shape[k]
+	    p2 = n - (n + 1) // 2
+	    mylist = np.concatenate((np.arange(p2, n), np.arange(p2)))
+	    x = da.take(x, mylist, k)
 	return x
