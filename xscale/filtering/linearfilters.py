@@ -15,7 +15,7 @@ from dask.diagnostics import ProgressBar
 import dask.array as da
 import xarray as xr
 # Matplotlib
-import pylab as plt
+import matplotlib.pyplot as plt
 from matplotlib import gridspec
 # Current package
 from .. import _utils

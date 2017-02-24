@@ -4,11 +4,11 @@ from os.path import exists
 from setuptools import setup
 import versioneer
 
-DISTNAME = 'xarray'
+DISTNAME = 'xscale'
 PACKAGES = ['xscale', 'xscale.filtering', 'xscale.signal', 'xscale.spectral']
 TESTS = [p + '.tests' for p in PACKAGES]
-INSTALL_REQUIRES = ['numpy >= 1.7', 'pandas >= 0.15.0', 'xarray >=0.8'
-                    'dask >=0.12.0', 'numba >=  0.30.0', 'scipy >=  0.18.0']
+INSTALL_REQUIRES = ['numpy >= 1.7', 'scipy >=  0.18.0', 'xarray >= 0.8.2',
+                    'dask >= 0.12.0', 'numba >=  0.30.0', ]
 TESTS_REQUIRE = ['pytest >= 2.7.1']
 
 URL = 'http://github.com/serazing/xscale'
@@ -17,9 +17,12 @@ AUTHOR_EMAIL = 'guillaume.serazin@legos.obs-mip.fr'
 LICENSE = 'Apache'
 DESCRIPTION = 'Signal processing tools based on xarray and dask'
 
+VERSION = versioneer.get_version()
+CMDCLASS = versioneer.get_cmdclass()
+
 setup(name=DISTNAME,
-      version=versioneer.get_version(),
-      cmdclass=versioneer.get_cmdclass(),
+      version=VERSION,
+      cmdclass=CMDCLASS,
       description=DESCRIPTION,
       url=URL,
       author=AUTHOR,
