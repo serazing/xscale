@@ -10,14 +10,14 @@ objects. See the full documentation_ for more information.
 
 
 .. _documentation: http://xscale.readthedocs.io/en/latest/
-.. |DOI| image:: https://zenodo.org/badge/14957/xscale/xscale.svg
-   :target: https://zenodo.org/badge/latestdoi/14957/serazing/xscale
+.. |DOI| image:: https://zenodo.org/badge/81343270.svg
+   :target: https://zenodo.org/badge/latestdoi/81343270
 .. |Build| image:: https://travis-ci.org/serazing/xscale.svg
    :target: https://travis-ci.org/serazing/xscale
 .. |Coverage| image:: https://coveralls.io/repos/serazing/xscale/badge.svg
    :target: https://coveralls.io/r/serazing/xscale
    :alt: Coverage status
-.. |Doc| image:: http://xscale.readthedocs.io/en/latest/?badge=latest
-   :target: https://readthedocs.io/projects/dask/?badge=latest
+.. |Doc| image:: https://readthedocs.org/projects/xscale/badge/?version=latest
+   :target: http://xscale.readthedocs.io/en/latest/?badge=latest
    :alt: Documentation Status
 
