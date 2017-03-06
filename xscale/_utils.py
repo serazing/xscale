@@ -18,12 +18,12 @@ def is_dict_like(value):
 def is_scalar(value):
 	""" Whether to treat a value as a scalar. Any non-iterable, string, or 0-D array """
 	return (getattr(value, 'ndim', None) == 0
-	        or isinstance(value, basestring)
+	        or isinstance(value, str)
 	        or not isinstance(value, Iterable))
 
 
 def is_iterable(value):
-	return isinstance(value, Iterable) and not isinstance(value, basestring)
+	return isinstance(value, Iterable) and not isinstance(value, str)
 
 
 def homogeneous_type(seq):
@@ -49,8 +49,8 @@ def infer_n_and_dims(obj, n, dims):
 				else:
 				    warnings.warn("Cannot find dimension %s in DataArray" % di)
 	elif is_dict_like(n):
-		new_n = n.values()
-		new_dims = n.keys()
+		new_n = tuple(n.values())
+		new_dims = tuple(n.keys())
 	elif isinstance(n, int):
 		if dims is None:
 			new_n = tuple([n for number in range(obj.ndim)])
@@ -110,7 +110,7 @@ def infer_arg(arg, dims, default_value=None):
 				new_arg[di] = default_value
 			except TypeError:
 				new_arg[dims[di]] = arg
-	elif isinstance(arg, Iterable) and not isinstance(arg, basestring):
+	elif isinstance(arg, Iterable) and not isinstance(arg, str):
 		if homogeneous_type(arg):
 			for i, di in enumerate(dims):
 				try:

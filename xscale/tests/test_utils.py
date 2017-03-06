@@ -49,10 +49,12 @@ def test_infer_n_and_dims():
 	# Case n and dims are None -> returns all dimensions and all dimensions
 	assert _utils.infer_n_and_dims(array, None, None) == (shape, dims)
 	# Case n is None and dims is defined -> returns the dimensions and the associated shape
-	assert _utils.infer_n_and_dims(array, None, ('x', 'time')) == ((50, 12), ('x', 'time'))
+	assert _utils.infer_n_and_dims(array, None, ('x', 'time')) == \
+	       ((50, 12), ('x', 'time'))
 	# Case n is a dictionary and dims is None or whatever
 	dict_test = {'x': 10, 'y': 20}
-	assert _utils.infer_n_and_dims(array, dict_test, None) == (dict_test.values(), dict_test.keys())
+	assert _utils.infer_n_and_dims(array, dict_test, None) == \
+	       (tuple(dict_test.values()), tuple(dict_test.keys()))
 	# Case n is an int and dims is None -> returns n over all dimensions
 	assert _utils.infer_n_and_dims(array, 10, None) == ((10, 10, 10), dims)
 	# Case n is an int and dims is a BaseString
