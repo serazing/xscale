@@ -11,6 +11,10 @@ matrix:
     env: CONDA_ENV=py27-min
   - python: 2.7
     env: CONDA_ENV=py27-dev
+  - python: 2.7
+    env: CONDA_ENV=py35-min
+  - python: 2.7
+    env: CONDA_ENV=py35-dev
 
 before_install:
   - if [[ "$TRAVIS_PYTHON_VERSION" == "2.7" ]]; then
