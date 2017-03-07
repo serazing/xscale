@@ -146,6 +146,16 @@ def test_parserval_complex_1d():
 	assert np.var(a) == xfft.ps(spec).sum()
 
 
+def test_parseval_real_2d():
+	"""Test if the Parseval theorem is verified"""
+	a = np.mgrid[:5, :5, :5][0]
+	dummy_array = xr.DataArray(a, dims=['x', 'y', 'z'])
+	chunked_array = dummy_array.chunk(chunks={'x': 2, 'y': 2, 'z': 2})
+	spec = xfft.fft(chunked_array, dim=['y', 'z'], detrend='mean')
+	assert np.array_equal(np.var(a, axis=(1, 2)),
+	                      xfft.ps(spec).sum(dim=['f_y','f_z']))
+
+
 def test_parserval_complex_2d():
 	""" Compare the result from the spectrum.fft function to
 	numpy.fft.fftn
