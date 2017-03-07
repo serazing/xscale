@@ -162,7 +162,7 @@ def fft(array, nfft=None, dim=None, dx=None, detrend=None, tapering=False,
 		     chunks=chunks, sym=sym)
 	spec = xr.DataArray(spectrum_array, coords=spectrum_coords,
 	                    dims=spectrum_dims, name='spectrum')
-	_compute_norm_factor(spec, new_nfft, new_dim, tapering, sym=sym)
+	_compute_norm_factor(spec, new_nfft, new_dim, new_dx, tapering, sym=sym)
 	return spec
 
 
@@ -227,7 +227,7 @@ def _tapper(array, dim, window=('tukey', 0.25)):
 	return win.tapper()
 
 
-def _compute_norm_factor(array, nfft, dim, tapering, sym=True):
+def _compute_norm_factor(array, nfft, dim, dx, tapering, sym=True):
 	"""Compute the normalization factor for Power Spectrum and Power Spectrum Density
 	"""
 	try:
@@ -240,7 +240,8 @@ def _compute_norm_factor(array, nfft, dim, tapering, sym=True):
 		psd_factor = 1.
 	first = True
 	for di in dim:
-		df = np.diff(array['f_' + di])[0]
+		# Get the sampling frequency
+		fs = 1. / dx[di]
 		if tapering:
 			#TODO: Make a correct normalization by computing the weights of
 			# window used for the tapering
@@ -252,7 +253,7 @@ def _compute_norm_factor(array, nfft, dim, tapering, sym=True):
 		ps_factor /= s1 ** 2
 		#TODO: check if the normalization for the PSD is 1 / (df * nfft) as used
 		# in the following
-		psd_factor /= df * s2
+		psd_factor /= fs * s2
 		if first and not sym:
 			ps_factor *= 2.
 			psd_factor *= 2.
