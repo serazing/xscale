@@ -18,3 +18,12 @@ def test_rednoise():
 def test_trend():
 	x = np.arange(100)
 	xgen.trend(x, 1.2, 3.4)
+
+
+def test_example_xt():
+	xgen.example_xt()
+
+
+@pytest.mark.parametrize("boundaries",  [False, True])
+def test_example_xyt(boundaries):
+	xgen.example_xyt(boundaries=boundaries)

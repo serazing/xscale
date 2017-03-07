@@ -4,7 +4,7 @@ from __future__ import absolute_import, division, print_function
 import pytest
 # Xscale
 from xscale.filtering import linearfilters
-from xscale.signal.generator import signaltest_xyt
+from xscale.signal.generator import example_xyt
 # Pandas
 import pandas as pd
 # Xarray
@@ -15,7 +15,7 @@ import dask.array as da
 import numpy as np
 # Scipy
 import scipy.signal as sig
-# Matlplotlib
+# Matplotlib
 import matplotlib.pyplot as plt
 
 window_list = ['boxcar', 'triang', 'parzen', 'bohman', 'blackman', 'nuttall',
@@ -26,8 +26,8 @@ window_list = ['boxcar', 'triang', 'parzen', 'bohman', 'blackman', 'nuttall',
                #'slepian', 'cosine', 'hann']
 
 
-sig_xyt = signaltest_xyt()
-sig_xyt_wth_coast = signaltest_xyt(coastlines=True)
+sig_xyt = example_xyt()
+sig_xyt_wth_coast = example_xyt(boundaries=True)
 
 # Testing array
 shape = (48, 30, 40)
@@ -72,6 +72,7 @@ def test_compute_boundary_weights(window):
 	win2d.boundary_weights(drop_dims=['time'])
 
 
+#TODO: how can we test plot using Travis CI without having a core dump issue
 #@pytest.mark.parametrize("window",  window_list)
 #def test_window_plot1d(window):
 #	win = sig_xyt.window

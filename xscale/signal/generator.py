@@ -100,14 +100,32 @@ def trend(x, slope, offset):
 	return slope * x + offset
 
 
-def signaltest_xyt(coastlines=False):
+def example_xt():
 	"""
-	Generate
+	Generate a time-space DataArray to be used as an example with `xscale`
+	functions
+	"""
+	nx = 128
+	nt = 100
+	time = pd.date_range('1/1/2011', periods=nt, freq='D')
+	x1d = np.linspace(0, 2 * np.pi, nx)
+	rand = xr.DataArray(np.random.rand(nt, nx), coords=[time, x1d],
+	                    dims=['time', 'x'])
+	slopes = 0.02 * xr.DataArray(np.cos(2 * np.pi * x1d / nx), coords=[x1d],
+	                             dims=['x'])
+	output = rand + slopes * rand.time.astype('f8') * 1. / (3600. * 24.)
+	output.name = 'example_xt'
+	return output.chunk({'time': 50, 'x': 70})
+
+
+def example_xyt(boundaries=False):
+	"""
+	Generate a time-space DataArray with two spatial dimensions ['x', 'y'] on a
+	regular grid.
 	"""
 	nt = 100
 	nx = 128
 	ny = 128
-	#TODO: USE DAT
 	time = pd.date_range('1/1/2011', periods=nt, freq='D')
 	t1d =  np.asarray(time).astype('f8')
 	x1d = np.linspace(0, 2 * np.pi, nx)
@@ -127,7 +145,8 @@ def signaltest_xyt(coastlines=False):
 	z3 = np.sin(x) * np.sin(2.5 * y) * m3
 	z4 = np.sin(2.5 * x) * np.sin(2.5 * y) * m4
 	z = z1 + z2 + z3 + z4 + noise
-	if coastlines:
+	if boundaries:
 		z[:, 0:ny/4, 0:nx/4] = np.nan
-	output = xr.DataArray(z, coords=[t1d, y1d, x1d], dims=['time', 'y', 'x'], name='signal_test')
+	output = xr.DataArray(z, coords=[time, y1d, x1d], dims=['time', 'y', 'x'],
+	                      name='example_xyt')
 	return output.chunk({'time': 50, 'x': 70, 'y':70})
