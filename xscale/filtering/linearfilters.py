@@ -101,7 +101,6 @@ class Window(object):
 		self.coefficients = 1.
 		self._depth = dict()
 
-		# TODO: Test the size of the chunks compared to n
 		# Build the multi-dimensional window: the hard part
 		for di in self.obj.dims:
 			axis_num = self.obj.get_axis_num(di)
@@ -109,9 +108,8 @@ class Window(object):
 			if di in self.dims:
 				self._depth[axis_num] = int(self.order[di] / 2)
 				if self.dx[di] is None:
-					dx = _utils.get_dx(self.obj, di)
-					self.dx[di] = dx
-				self.fnyq[di] = 1. / (2. * dx)
+					self.dx[di] = _utils.get_dx(self.obj, di)
+				self.fnyq[di] = 1. / (2. * self.dx[di])
 				# Compute the coefficients associated to the window using scipy functions
 				if self.cutoff[di] is None:
 					# Use get_window if the cutoff is undefined

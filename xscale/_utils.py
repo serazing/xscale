@@ -155,7 +155,7 @@ def get_dx(obj, dim, freq='s'):
 	dx: float
 		The resolution of the coordinates associated to the dimension
 	"""
-	x = obj[dim].data
+	x = np.asarray(obj[dim])
 	if pd.core.common.is_datetime64_dtype(x):
 		dx = pd.Series(x[1:]) - pd.Series(x[:-1])
 		dx /= np.timedelta64(1, freq)
