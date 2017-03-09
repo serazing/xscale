@@ -106,7 +106,7 @@ def psd(spectrum):
 
 
 def fft(array, nfft=None, dim=None, dx=None, detrend=None, tapering=False,
-        shift=False, sym=False, chunks=None):
+        shift=True, sym=False, chunks=None):
 	"""Compute the spectrum on several dimensions of xarray.DataArray objects
 	using the Fast Fourrier Transform parrallelized with dask.
 
@@ -124,6 +124,13 @@ def fft(array, nfft=None, dim=None, dx=None, detrend=None, tapering=False,
 		Remove the mean or a linear trend before the spectrum computation
 	tapering : bool, optional
 		If True, tapper the data with a Tukey window
+	shift : bool, optional
+		If True, the frequency axes are shifted to center the 0 frequency,
+		otherwise negative frequencies follow positive frequencies as in
+		numpy.fft.ftt
+	sym : bool, optional
+		If True, force the spectrum to be symmetrical even if the input data
+		is real
 	chunks : int, tuple or dict, optional
 		Chunk sizes along each dimension, e.g., ``5``, ``(5, 5)`` or
 		``{'x': 5, 'y': 5}``
