@@ -151,7 +151,8 @@ def test_parseval_real_2d():
 	a = np.mgrid[:5, :5, :5][0]
 	dummy_array = xr.DataArray(a, dims=['x', 'y', 'z'])
 	chunked_array = dummy_array.chunk(chunks={'x': 2, 'y': 2, 'z': 2})
-	spec = xfft.fft(chunked_array, dim=['y', 'z'], detrend='mean')
+	chunked_array_zeromean = chunked_array - chunked_array.mean(dim=['y', 'z'])
+	spec = xfft.fft(chunked_array_zeromean, dim=['y', 'z'])
 	assert np.array_equal(np.var(a, axis=(1, 2)),
 	                      xfft.ps(spec).sum(dim=['f_y','f_z']))
 
@@ -163,6 +164,7 @@ def test_parserval_complex_2d():
 	a, b, c = np.meshgrid([0, 1, 0, 0], [0, 1j, 1j], [0, 1, 1, 1])
 	dummy_array = xr.DataArray(a * b * c, dims=['x', 'y', 'z'])
 	chunked_array = dummy_array.chunk(chunks={'x': 2, 'y': 2, 'z': 2})
-	spec = xfft.fft(chunked_array, dim=['y', 'z'], detrend='mean')
+	chunked_array_zeromean = chunked_array - chunked_array.mean(dim=['y', 'z'])
+	spec = xfft.fft(chunked_array_zeromean, dim=['y', 'z'])
 	assert np.array_equal(np.var(a * b * c, axis=(1, 2)),
 	                      xfft.ps(spec).sum(dim=['f_y','f_z']))
