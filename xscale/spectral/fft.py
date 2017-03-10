@@ -153,8 +153,9 @@ def fft(array, nfft=None, dim=None, dx=None, detrend=None, tapering=False,
 	if detrend is 'mean':
 		# Tackling the issue of the dask graph by computing and loading the
 		# mean here
-		mean_array = array.mean(dim=new_dim).load()
-		preproc_array = array - mean_array
+		for di in new_dim:
+			mean_array = array.mean(dim=di).load()
+			preproc_array = array - mean_array
 	elif detrend is 'linear':
 		preproc_array = _detrend(array, new_dim)
 	else:
