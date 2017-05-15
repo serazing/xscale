@@ -51,6 +51,9 @@ def test_infer_n_and_dims():
 	# Case n is None and dims is defined -> returns the dimensions and the associated shape
 	assert _utils.infer_n_and_dims(array, None, ('x', 'time')) == \
 	       ((50, 12), ('x', 'time'))
+	# Case n is None and dims is a string -> returns the dimensions and the
+	# associated shape
+	assert _utils.infer_n_and_dims(array, None, 'time') == ((12,), ('time',))
 	# Case n is a dictionary and dims is None or whatever
 	dict_test = {'x': 10, 'y': 20}
 	assert _utils.infer_n_and_dims(array, dict_test, None) == \
@@ -104,12 +107,18 @@ def test_infer_arg():
 	                        dims) == {'x': None, 'y': 0.05,
 	                                  'time': [0.01, 0.05]}
 	assert _utils.infer_arg([1,], 'x') == {'x': 1}
-
-	assert _utils.infer_arg(('name', 36), 'x') == {'x': ('name', 36)}
+	assert _utils.infer_arg(1, 'time') == {'time': 1}
+	assert _utils.infer_arg({'time': 1}, 'time') == {'time': 1}
+	assert _utils.infer_arg([1, ], 'time') == {'time': 1}
+	assert _utils.infer_arg([1, ], ['time',]) == {'time': 1}
+	assert _utils.infer_arg(None, 'time') == {'time': None}
+	assert _utils.infer_arg(('name', 36), 'time') == {'time': ('name', 36)}
 	assert _utils.infer_arg({'x': ('name', 36)}, ('y', 'x')) == {'y': None,
 	                                                       'x': ('name', 36)}
 	assert _utils.infer_arg(('name', 36), ('y', 'x')) == {'y': ('name', 36),
 	                                                       'x': ('name', 36)}
+	with pytest.raises(TypeError, message="Expecting ValueError"):
+		_utils.infer_n_and_dims((12, 36), 'time')
 
 def test_get_dx():
 	assert _utils.get_dx(array, 'x') == np.pi

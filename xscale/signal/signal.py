@@ -27,6 +27,7 @@ def detrend(array, dim=None, typ='linear', chunks=None):
 	return xr.DataArray(res, dims=array.dims, coords=array.coords,
 	                    name=array.name)
 
+
 # Dask-based functions are for private use only
 def _detrend(data, axis, typ='linear'):
 	"""Detrend using dask.linalg.lstq`"""
@@ -44,8 +45,19 @@ def _detrend(data, axis, typ='linear'):
 	return res
 
 
-def _linreg(data1, data2, axis):
-	pass
+def linreg(data1, data2, dim):
+	# Restructure data so that axis is along first dimension and
+	# all other dimensions are collapsed into second dimension
+	if dim not in data1.dims:
+		raise ValueError("Cannot find dim in data dimensions.")
+	other_dims = [di for di in data1.dims if not di == dim]
+	data_stack = data1.stack(other=other_dims)
+	data_stack = data_stack.transpose([dim, 'other'])
+
+
+	n1 = shape[0]
+	n2 = np.prod(shape[1:])
+
 
 
 def _quadreg(data1, data2, axis):

@@ -1,3 +1,5 @@
+.. _window:
+
 Window
 ======
 
@@ -12,19 +14,19 @@ Window
 Description
 -----------
 
-The ``Window`` object is implemented in py:module:`xscale.window`, which uses
- the decorator py:decorator:`xarray.register_dataarray_accessor` to associate
- a window to a py:class:`xr.DataArray`. The ``Window`` object extends
- py:class:`xr.DataArray.rolling` to multi-dimensional arrays and benefits from
- the power of py:module:`dask.array` for multi-processing computation. As an
- example, a 3-dimensional testing ``DataArray`` is loaded from the
- py:module:`xscale.signal.generator`:
+The ``Window`` object is implemented in :py:mod:`xscale.window`, which
+uses the decorator :py:dec:`xarray.register_dataarray_accessor` to
+associate a window to a :py:class:`~xarray.DataArray`. The ``Window`` object
+extends :py:class:`xarray.DataArray.rolling` to multi-dimensional arrays and
+benefits from the power of :py:mod:`dask.array` for multi-processing
+computation. As an example, a 3-dimensional testing ``DataArray`` is loaded
+from the :py:mod:`~xscale.signal.generator`:
 
 .. ipython:: python
 
     import xscale.signal.generator as xgen
     foo = xgen.signaltest_xyt()
-    print foo
+    foo
 
 The ``Window`` object may be simply linked to the latter ``DataArray`` using
 the attribute ``.window``:
@@ -38,7 +40,7 @@ the attribute ``.window``:
 Defining
 --------
 
-The py:method:`xscale.Window.set` method takes optionally six parameters:
+The :py:meth:`xscale.Window.set` method takes optionally six parameters:
 
  - ``n``: the size of the window
  - ``dim``: dimension names for each axis (e.g., ``('x', 'y', 'z')``).
@@ -47,8 +49,8 @@ The py:method:`xscale.Window.set` method takes optionally six parameters:
    filtering.
  - ``window``: the name of the window used, and other window parameters passed
    through a tuple
- - ``chunk``: set or modify the chunks of the py:module:`dask.array` object
-   associated to the py:module:`xarray.DataArray`
+ - ``chunk``: set or modify the chunks of the :py:mod:`dask.array` object
+   associated to the :py:mod:`xarray.DataArray`
 
 .. note::
 
@@ -64,10 +66,10 @@ Once a ``Window`` is set, one can check the status of the ``Window`` usìng
 
 .. ipython:: python
 
-    print w
+    print(w)
 
 If the ``cutoff`` parameter is not defined the
-py:method:`scipy.signal.get_window` is used to build the window along each
+:py:meth:`scipy.signal.get_window` is used to build the window along each
 dimensions passed through the other parameters.
 
 .. ipython:: python
@@ -77,7 +79,7 @@ dimensions passed through the other parameters.
     @savefig boxcar_time_n15.png
     plt.show()
 
-If the ``cutoff`` parameter is defined, the py:method:`scipy.signal.get_window`
+If the ``cutoff`` parameter is defined, the :py:meth:`scipy.signal.get_window`
 is used to generate a Finite Impulse Response filter based on the cutoff and
 in respect of the window properties:
 
@@ -92,7 +94,7 @@ in respect of the window properties:
 
 .. note::
 
-    Every time one uses the py:method:`xscale.Window.set` method, all the
+    Every time one uses the :py:meth:`xscale.Window.set` method, all the
     window parameters are automatically reset.
 
 There are several default options that allow a flexible use of ``Window``. By
@@ -104,9 +106,11 @@ There are several default options that allow a flexible use of ``Window``. By
 Plotting
 --------
 
-Plotting the window is useful to check its physical and spectral properties. For 1-dimensional and 2-dimensional
-windows, the ``plot`` function can be used to display the weight distribution as well as the spectral response of the
-window
+Plotting the window is useful to check its physical and spectral properties.
+For 1-dimensional and 2-dimensional windows, the ``plot`` function can be used
+to display the weight distribution as well as the spectral response of the
+window. The cutoff periods for -3 dB and -6 dB damping and are very useful to
+assess the selectivity of the window.
 
 For one-dimensional window:
 
@@ -130,10 +134,40 @@ For two-dimensional window:
 
     The ``plot`` function will not work for windows with more than 2 dimensions.
 
+
 Convolution
 -----------
 
-The py:class:`xarray.DataArray.Window` can be applied on dataset with missing
+The designed window can be then used to filter the data using a
+multi-dimensional convolution by calling the
+:py:meth:`xarray.DataArray.Window.convolve` method. When this method is
+called the dask graph is implemented by mapping and ghosting the
+:py:func:`scipy.ndimage.convolve` function.
+
+.. ipython:: python
+
+    res = w.convolve()
+    res.visualize()
+
+.. note::
+
+   If the keyword parameter ``compute`` is set to ``True``, the computation
+   will be performed and a progress bar will be displayed.
+
+
+
+The convolution is
+
+.. ipython:: python
+
+    foo = xgen.signaltest_xyt()
+    w = foo.window
+    w.set(n={'x': 11, 'y': 21}, window={'x':'hanning', 'y':('tukey', 0.25)})
+    w.convolve(compute=False).visualize()
+    @savefig convolve_graph.png
+
+
+The :py:class:`xarray.DataArray.Window` can be applied on dataset with missing
 values such as land areas for oceanographic data. In this case, the filter
 weights are normalized to take into account only valid data. In general,
 such a normalization is applied by computing the low-passed data :math:`Y_{LP}`:
@@ -146,26 +180,11 @@ such a normalization is applied by computing the low-passed data :math:`Y_{LP}`:
 where :math:`Y` is the raw data, :math:`W` the window used, and :math:`M` a
    mask that is 1 for valid data and 0 for missing values.
 
-
-If the keyword paramter ``compute`` is set to ``True``, the computation will be performed and and progress bar
-displayed.
-
-.. ipython:: python
-
-    res = w.convolve(compute=True)
-
-.. ipython:: python
-
-    foo = xgen.signaltest_xyt()
-    w = foo.window
-    w.set(n={'x': 11, 'y': 21}, window={'x':'hanning', 'y':('tukey', 0.25)})
-    w.convolve(compute=False).visualize()
-    @savefig convolve_graph.png
-
 .. note::
 
-    Once a filtering has been performed, the current ``DataArray`` the py:module:`dask` graph is destroyed and need to
-     be created again using the py:method:`xscale.Window.set` method.
+    Once a filtering has been performed, the current ``DataArray`` the
+    :py:mod:`dask` graph is destroyed and need to
+     be created again using the :py:meth:`xscale.Window.set` method.
 
 Tapering
 --------

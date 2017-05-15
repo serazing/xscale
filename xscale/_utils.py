@@ -29,7 +29,7 @@ def is_iterable(value):
 def homogeneous_type(seq):
     iseq = iter(seq)
     first_type = type(next(iseq))
-    return first_type if all( (type(x) is first_type) for x in iseq ) else False
+    return first_type if all((type(x) is first_type) for x in iseq) else False
 
 
 def infer_n_and_dims(obj, n, dims):
@@ -39,6 +39,9 @@ def infer_n_and_dims(obj, n, dims):
 		if dims is None:
 			new_n = obj.shape
 			new_dims = obj.dims
+		elif isinstance(dims, str):
+			new_n = (obj.shape[obj.get_axis_num(dims)], )
+			new_dims = (dims, )
 		else:
 			new_n = tuple()
 			new_dims = tuple()
@@ -99,42 +102,50 @@ def infer_n_and_dims(obj, n, dims):
 def infer_arg(arg, dims, default_value=None):
 	new_arg = dict()
 	if arg is None:
-		new_arg = {di: default_value for di in dims}
+		if isinstance(dims, str):
+			new_arg[dims] = default_value
+		else:
+			new_arg = {di: default_value for di in dims}
 	elif is_scalar(arg):
-		new_arg = {di: arg for di in dims}
+		if isinstance(dims, str):
+			new_arg[dims] = arg
+		else:
+			new_arg = {di: arg for di in dims}
 	elif is_dict_like(arg):
-		for di in dims:
-			try:
-				new_arg[di] = arg[di]
-			except (KeyError, IndexError):
-				new_arg[di] = default_value
-			except TypeError:
-				new_arg[dims[di]] = arg
-	elif isinstance(arg, Iterable) and not isinstance(arg, str):
-		if homogeneous_type(arg):
-			for i, di in enumerate(dims):
+		if isinstance(dims, str):
+			new_arg[dims] = arg[dims]
+		else:
+			for di in dims:
 				try:
-					new_arg[di] = arg[i]
+					new_arg[di] = arg[di]
 				except (KeyError, IndexError):
 					new_arg[di] = default_value
-				except TypeError:
-					new_arg[dims[di]] = arg
-			#if not len(dims) == len(arg):
-			#	if len(arg) == 1:
-			#	new_arg[dims[0]] = arg[0]
-			#else:
-			#	new_arg[dims[0]] = arg
-			#except TypeError:
-			#	new_arg[dims[0]] = arg
+	elif isinstance(arg, Iterable) and not isinstance(arg, str):
+		if isinstance(dims, str):
+			if len(arg) == 1:
+				new_arg[dims] = arg[0]
+			elif not homogeneous_type(arg):
+				new_arg[dims] = arg
+			else:
+				raise ValueError("The two arguments do not coincide")
 		else:
-			for i, di in enumerate(dims):
-				try:
-					new_arg[di] = arg
-				except TypeError:
-					new_arg[dims[di]] = arg
-
+			if homogeneous_type(arg):
+				for i, di in enumerate(dims):
+					# if not len(dims) == len(arg):
+					try:
+						new_arg[di] = arg[i]
+					except (KeyError, IndexError):
+						new_arg[di] = default_value
+					except TypeError:
+						new_arg[dims[di]] = arg
+			else:
+				for i, di in enumerate(dims):
+					try:
+						new_arg[di] = arg
+					except TypeError:
+						new_arg[dims[di]] = arg
 	else:
-		raise TypeError("This type of option is not supported for the second "
+		raise TypeError("This type of argument is not supported for the second "
 		                "argument")
 	return new_arg
 

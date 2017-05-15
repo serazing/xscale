@@ -1,6 +1,8 @@
 name: xscale-doc
+channels:
+  - conda-forge
 dependencies:
-  - python=2.7
+  - python
   - ipython
   - numpy
   - scipy

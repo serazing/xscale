@@ -177,6 +177,7 @@ extensions = [
 intersphinx_mapping = {
 	'xarray': ('http://xarray.pydata.org/en/stable/', None),
 	'dask': ('http://dask.pydata.org/en/stable/', None),
+    'numpy': ('https://docs.scipy.org/doc/numpy/', None),
 }
 
 extlinks = {'issue': ('https://github.com/serazing/xscale/issues/%s', 'GH')}
