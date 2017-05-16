@@ -9,13 +9,14 @@ Window
     import numpy as np
     import xarray as xr
     import matplotlib.pyplot as plt
+    import graphviz
 
 
 Description
 -----------
 
 The ``Window`` object is implemented in :py:mod:`xscale.window`, which
-uses the decorator :py:dec:`xarray.register_dataarray_accessor` to
+uses the decorator :py:obj:`xarray.register_dataarray_accessor` to
 associate a window to a :py:class:`~xarray.DataArray`. The ``Window`` object
 extends :py:class:`xarray.DataArray.rolling` to multi-dimensional arrays and
 benefits from the power of :py:mod:`dask.array` for multi-processing
@@ -25,8 +26,20 @@ from the :py:mod:`~xscale.signal.generator`:
 .. ipython:: python
 
     import xscale.signal.generator as xgen
-    foo = xgen.signaltest_xyt()
+    foo = xgen.example_xyt()
     foo
+
+.. ipython:: python
+
+    foo.isel(y=40, x=40).plot()
+    @savefig raw_timeseries.png
+    plt.show()
+
+.. ipython:: python
+
+    foo.isel(time=10).plot()
+    @savefig raw_2d_field.png
+    plt.show()
 
 The ``Window`` object may be simply linked to the latter ``DataArray`` using
 the attribute ``.window``:
@@ -34,7 +47,7 @@ the attribute ``.window``:
 .. ipython:: python
 
     import xscale
-    w = foo.window
+    wt = foo.window
 
 
 Defining
@@ -60,13 +73,13 @@ The :py:meth:`xscale.Window.set` method takes optionally six parameters:
 
 .. ipython:: python
 
-    w.set()
+    wt.set()
 
 Once a ``Window`` is set, one can check the status of the ``Window`` usìng
 
 .. ipython:: python
 
-    print(w)
+    print(wt)
 
 If the ``cutoff`` parameter is not defined the
 :py:meth:`scipy.signal.get_window` is used to build the window along each
@@ -74,8 +87,8 @@ dimensions passed through the other parameters.
 
 .. ipython:: python
 
-    w.set(n=15, dim='time', window='boxcar')
-    w.plot()
+    wt.set(n=15, dim='time', window='boxcar')
+    wt.plot()
     @savefig boxcar_time_n15.png
     plt.show()
 
@@ -87,8 +100,8 @@ in respect of the window properties:
 
     cutoff_10d = 10 # A 10-day frequency in seconds
     dx_1d = 1 # Define the sampling period (one day)
-    w.set(n=20, dim='time', cutoff=cutoff_10d, dx=dx_1d, window='boxcar')
-    w.plot()
+    wt.set(n=20, dim='time', cutoff=cutoff_10d, dx=dx_1d, window='boxcar')
+    wt.plot()
     @savefig boxcar_time_n20_10d.png
     plt.show()
 
@@ -116,8 +129,8 @@ For one-dimensional window:
 
 .. ipython:: python
 
-    w.set(n=15, dim='time', window='hanning')
-    w.plot()
+    wt.set(n=15, dim='time', cutoff=cutoff_10d, dx=dx_1d, window='hanning')
+    wt.plot()
     @savefig hanning_time_n15.png
     plt.show()
 
@@ -125,8 +138,9 @@ For two-dimensional window:
 
 .. ipython:: python
 
-    w.set(n={'x': 10, 'y': 15}, window={'x':'hanning', 'y':('tukey', 0.25)})
-    w.plot()
+    ws = foo.window
+    ws.set(n={'x': 10, 'y': 15}, window={'x':'hanning', 'y':('tukey', 0.25)})
+    ws.plot()
     @savefig hanning_nx10_ny15.png
     plt.show()
 
@@ -146,25 +160,29 @@ called the dask graph is implemented by mapping and ghosting the
 
 .. ipython:: python
 
-    res = w.convolve()
-    res.visualize()
+    res = wt.convolve()
+
+.. ipython:: python
+
+    foo.isel(y=40, x=40).plot()
+    res.isel(y=40, x=40).plot()
+    @savefig time_filtering.png
+    plt.show()
+
+The application of the two-dimensional window `̀ ws`` gives the following
+filtered data:
+
+.. ipython:: python
+
+    res2 = ws.convolve()
+    res2.isel(time=10).plot()
+    @savefig spatial_filtering.png
+    plt.show()
 
 .. note::
 
    If the keyword parameter ``compute`` is set to ``True``, the computation
    will be performed and a progress bar will be displayed.
-
-
-
-The convolution is
-
-.. ipython:: python
-
-    foo = xgen.signaltest_xyt()
-    w = foo.window
-    w.set(n={'x': 11, 'y': 21}, window={'x':'hanning', 'y':('tukey', 0.25)})
-    w.convolve(compute=False).visualize()
-    @savefig convolve_graph.png
 
 
 The :py:class:`xarray.DataArray.Window` can be applied on dataset with missing
@@ -176,15 +194,56 @@ such a normalization is applied by computing the low-passed data :math:`Y_{LP}`:
 
    Y_{LP} = \frac{W * Y}{W * M},
 
+where :math:`Y` is the raw data, :math:`W` the window used, and :math:`M` a mask
+that is 1 for valid data and 0 for missing values.
 
-where :math:`Y` is the raw data, :math:`W` the window used, and :math:`M` a
-   mask that is 1 for valid data and 0 for missing values.
+
+
+.. ipython:: python
+
+    import xscale.signal.generator as xgen
+    foo = xgen.example_xyt(boundaries=True)
+
+.. ipython:: python
+
+    foo.isel(time=10).plot()
+    @savefig raw_2d_field_coastlines.png
+    plt.show()
+
+.. ipython:: python
+
+    ws = foo.window
+    ws.set(n={'x': 10, 'y': 15}, window={'x':'hanning', 'y':('tukey', 0.25)})
+    weights = ws.boundary_weights(drop_dims=['time'])
+    weights.plot(vmin=0.8, vmax=1.)
+    @savefig boundary_weights.png
+    plt.show()
+
+
+Without the use of boundary weights:
+
+.. ipython:: python
+
+    res_raw = ws.convolve()
+    res_raw.isel(time=10).plot()
+    @savefig filtering_without_weights.png
+    plt.show()
+
+With the use of boundary weights:
+
+.. ipython:: python
+
+    res_weights = ws.convolve(weights=weights)
+    res_weights.isel(time=10).plot()
+    @savefig filtering_with_weights.png
+    plt.show()
+
 
 .. note::
 
     Once a filtering has been performed, the current ``DataArray`` the
-    :py:mod:`dask` graph is destroyed and need to
-     be created again using the :py:meth:`xscale.Window.set` method.
+    :py:mod:`dask` graph is destroyed and need to be created again using the
+    :py:meth:`xscale.Window.set` method.
 
 Tapering
 --------
