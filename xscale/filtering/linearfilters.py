@@ -65,15 +65,15 @@ class Window(object):
 		----------
 		n : int, sequence or dict, optional
 			The window order over the dimensions specified through a dictionary
-			or through the ``dims`` parameters. If ``n`` is ``None``, the window
+			or through the ``dim`` parameters. If ``n`` is ``None``, the window
 			order is set to the total size of the corresponding dimensions
-			according to the ``dims`` parameters
+			according to the ``dim`` parameters
 		dim : str or sequence, optional
-			Names of the dimension associated to the window. If ``dims`` is
+			Names of the dimension associated to the window. If ``dim`` is
 			None, all the dimensions are taken.
 		cutoff : float, sequence or dict, optional
 			The window cutoff over the dimensions specified through a
-			dictionary, or through the ``dims`` parameters. If `cutoff`` is
+			dictionary, or through the ``dim`` parameters. If `cutoff`` is
 			``None``, the cutoff parameters will be not used in the design
 			the window.
 		dx : float or sequence, optional
@@ -147,34 +147,34 @@ class Window(object):
 		mode : {'reflect', 'periodic', 'any-constant'}, optional
 			The mode parameter determines how the array borders are handled.
 			Default is 'reflect'.
-
-		mask : DataArray
-
-		weights :
-
-		trim :
-
+		weights : DataArray, optional
+			Array to weight the result of the convolution close to the
+			boundaries.
+		trim : bool, optional
+			If True, choose to only keep the valid data not affected by the
+			boundaries.
 		compute : bool, optional
 			If True, the computation is performed after the dask graph has
 			been made. If False, only the dask graph is made is the computation
-			will be performed later on. The latter allows the integration into
-			a larger dask graph, which could include other computational steps.
+			will be performed later on.
 
 		Returns
 		-------
 		res : xarray.DataArray
-			Return the filtered  the low-passed filtered
+			Return a filtered DataArray
 		"""
 		# Check if the data has more dimensions than the window and add
 		# extra-dimensions to the window if it is the case
 		coeffs = self.coefficients / self.coefficients.sum()
 		if trim:
 			mode = np.nan
+			mode_conv = 'constant'
 			new_data = self.obj.data
 		else:
 			new_data = self.obj.fillna(0.).data
+			mode_conv = mode
 		boundary = {self._obj.get_axis_num(di): mode for di in self.dims}
-		conv = lambda x: im.convolve(x, coeffs, mode=mode)
+		conv = lambda x: im.convolve(x, coeffs, mode=mode_conv)
 		data_conv = new_data.map_overlap(conv, depth=self._depth,
 		                                       boundary=boundary,
 		                                       trim=True)
@@ -195,14 +195,23 @@ class Window(object):
 
 		Parameters
 		----------
-		mode:
-
-		drop_dims:
-			Specify dimensions along which the mask is constant
+		mode : {'reflect', 'periodic', 'any-constant'}, optional
+			The mode parameter determines how the array borders are handled.
+			Default is 'reflect'.
+		mask : array-like, optional
+			Specify the mask, if None the mask is inferred from missing values
+		drop_dims : list, optional
+			Specify dimensions along which the weights do not need to be
+			computed
+		compute : bool, optional
+			If True, the computation is performed after the dask graph has
+			been made. If False, only the dask graph is made is the computation
+			will be performed later on.
 
 		Returns
 		-------
-		weights:
+		weights : xarray.DataArray
+			Return a DataArray containing the weights
 		"""
 		coeffs = self.coefficients / self.coefficients.sum()
 		new_coeffs = da.squeeze(coeffs, axis=[self.obj.get_axis_num(di)

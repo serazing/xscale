@@ -2,4 +2,4 @@
 #
 
 from . import generator
-from . import signal
+from . import fitting

@@ -163,9 +163,10 @@ def fft(array, nfft=None, dim=None, dx=None, detrend=None, tapering=False,
 		preproc_array = array
 	if tapering:
 		preproc_array = _tapper(array, new_dim)
+	# TODO: Check if this part may work with dask using np.iscomplexobj
 	# If the array is complex, set the symmetry parameters to True
-	if sym is False and np.iscomplexobj(array):
-		sym = True
+	#if sym is False and np.iscomplexobj(array):
+	#	sym = True
 	spectrum_array, spectrum_coords, spectrum_dims = \
 		_fft(preproc_array, new_nfft, new_dim, new_dx, shift=shift,
 		     chunks=chunks, sym=sym)

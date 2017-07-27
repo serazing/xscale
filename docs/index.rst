@@ -61,6 +61,16 @@ Index
 
    fft.rst
 
+**Signal**
+
+* :doc:`signal`
+
+.. toctree::
+   :maxdepth: 1
+   :hidden:
+   :caption: Signal methods
+
+   fitting.rst
 
 **API**
 

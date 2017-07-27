@@ -146,7 +146,8 @@ def example_xyt(boundaries=False):
 	z4 = np.sin(2.5 * x) * np.sin(2.5 * y) * m4
 	z = z1 + z2 + z3 + z4 + noise
 	if boundaries:
-		z[:, 0:ny/4, 0:nx/4] = np.nan
+		z[:, 0:ny//2, 0:nx//4] = np.nan
+		z[:, 0:nx//4, 0:nx//2] = np.nan
 	output = xr.DataArray(z, coords=[time, y1d, x1d], dims=['time', 'y', 'x'],
 	                      name='example_xyt')
 	return output.chunk({'time': 50, 'x': 70, 'y':70})

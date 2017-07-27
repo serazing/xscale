@@ -150,8 +150,9 @@ def infer_arg(arg, dims, default_value=None):
 	return new_arg
 
 
-def get_dx(obj, dim, freq='s'):
-	"""Get the resolution over one the dimension dim. Warns the user if the coordinate is not evenly spaced.
+def get_dx(obj, dim, unit='s'):
+	"""Get the resolution over one the dimension dim.
+	Warns the user if the coordinate is not evenly spaced.
 
 	Parameters
 	----------
@@ -159,8 +160,10 @@ def get_dx(obj, dim, freq='s'):
 		Self-described data with coordinates corresponding to the dimensions
 	dim:
 		Dimension along which compute the delta
-	freq: {'A', 'M',
-		Optional
+	unit: {'D', 'h', 'm', 's', 'ms', 'us', 'ns'}, optional
+		If the fit the coordinates associated to the dimension is a
+		numpy.datetime object, the unit of the time delta may be specified here
+
 	Returns
 	-------
 	dx: float
@@ -169,7 +172,7 @@ def get_dx(obj, dim, freq='s'):
 	x = np.asarray(obj[dim])
 	if pd.core.common.is_datetime64_dtype(x):
 		dx = pd.Series(x[1:]) - pd.Series(x[:-1])
-		dx /= np.timedelta64(1, freq)
+		dx /= np.timedelta64(1, unit)
 	else:
 		dx = np.diff(x)
 	#TODO: Small issue this the function commented below
