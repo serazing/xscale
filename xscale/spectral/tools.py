@@ -126,9 +126,8 @@ def plot_power_law(power, scale_factor=1., ax=None, **kwargs):
 	if ax is None:
 		ax = plt.gca()
 	xlim = np.array(ax.get_xlim())
-
 	power_law = scale_factor * xlim ** power
-	plt.plot(xlim, power_law, **kwargs)
+	ax.plot(xlim, power_law, **kwargs)
 
 
 def fit_power_law(freq, spectrum):

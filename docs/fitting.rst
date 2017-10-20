@@ -104,10 +104,30 @@ functions:
     @savefig sine_fit.png
     plt.show()
 
+.. ipython:: python
+
+   rec = xfit.sinval(fit2w, truth.time)
+   print(rec)
+
+   rec12 = xfit.sinval(fit2w.sel(periods=[12,]), truth.time)
+   rec24 = xfit.sinval(fit2w.sel(periods=[24,]), truth.time)
+
+.. ipython:: python
+
+   truth.isel(x=10, y=10).plot(label='Truth')
+   rec.isel(x=10, y=10).plot(label='Recontruction with 2 modes')
+   rec24.isel(x=10, y=10).plot(label='Recontruction with mode 1, T=24h',
+   ls='--')
+   rec12.isel(x=10, y=10).plot(label='Recontruction with mode 2, T=12h',
+   ls='--')
+   plt.legend()
+   @savefig sine_reconstruction.png
+   plt.show()
+
 .. note::
 
     For complex signals, the harmonic fitting is not available yet. This
-    should be done for future version
+    should be done for future versions
 
 
 Exponential fitting

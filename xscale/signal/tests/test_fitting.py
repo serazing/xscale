@@ -41,7 +41,27 @@ def test_sinfit():
 	            unit='h').load()
 
 def test_sinval():
-	pass
+	Nt, Nx, Ny = 100, 128, 128
+	offset = 0.4
+	periods = [24., 12.]
+	amp1, phi1 = 1.2, 0.
+	amp2, phi2 = 1.9, 60.
+	time = xr.DataArray(pd.date_range(start='2011-01-01',
+	                                  periods=Nt,
+	                                  freq='H'),
+	                    dims='time')
+	amp = xr.DataArray([amp1, amp2], dims='periods')
+	phi = xr.DataArray([phi1, phi2], dims='periods')
+	ones = xr.DataArray(np.ones((Nx, Ny)), dims=['x', 'y'])
+	var_dict = {'amplitude': amp * ones,
+	            'phase': phi * ones,
+	            'offset': offset * ones}
+	ds = xr.Dataset(var_dict).chunk(chunks={'x': 50, 'y': 50})
+	ds = ds.assign_coords(periods=periods)
+	ds['periods'].attrs['units'] = 'h'
+	xfit.sinval(ds, time)
+	#One mode reconstruction
+	xfit.sinval(ds.sel(periods=[24,]), time)
 
 def test_order_and_stack():
 	rand = xr.DataArray(np.random.rand(100, 128, 128), dims=['time', 'x', 'y'])

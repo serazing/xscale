@@ -214,16 +214,20 @@ class Window(object):
 			Return a DataArray containing the weights
 		"""
 		coeffs = self.coefficients / self.coefficients.sum()
-		new_coeffs = da.squeeze(coeffs, axis=[self.obj.get_axis_num(di)
-		                                     for di in drop_dims])
+		if drop_dims:
+			new_coeffs = da.squeeze(coeffs, axis=[self.obj.get_axis_num(di)
+		                                          for di in drop_dims])
+		else:
+			new_coeffs = coeffs
 		new_obj = self.obj.isel(**{di: 0 for di in drop_dims}).squeeze()
-		depth = {new_obj.get_axis_num(di): self.order[di] // 2
-		         for di in new_obj.dims}
+		#depth = {new_obj.get_axis_num(di): self.order[di] // 2
+		#         for di in self.dims}
+		boundary = {self._obj.get_axis_num(di): mode for di in self.dims}
 		if mask is None:
 			mask = da.notnull(new_obj.data)
 		conv = lambda x: im.convolve(x, new_coeffs, mode=mode)
-		weights = mask.astype(float).map_overlap(conv, depth=depth,
-		                                               boundary=mode,
+		weights = mask.astype(float).map_overlap(conv, depth=self._depth,
+		                                               boundary=boundary,
 		                                               trim=True)
 
 		res = xr.DataArray(mask * weights, dims=new_obj.dims,
