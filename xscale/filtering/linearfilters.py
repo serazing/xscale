@@ -172,7 +172,10 @@ class Window(object):
 			new_data = self.obj.data
 		else:
 			new_data = self.obj.fillna(0.).data
-			mode_conv = mode
+			if mode is 'periodic':
+				mode_conv = 'wrap'
+			else:
+				mode_conv = mode
 		boundary = {self._obj.get_axis_num(di): mode for di in self.dims}
 		conv = lambda x: im.convolve(x, coeffs, mode=mode_conv)
 		data_conv = new_data.map_overlap(conv, depth=self._depth,
@@ -213,6 +216,11 @@ class Window(object):
 		weights : xarray.DataArray
 			Return a DataArray containing the weights
 		"""
+		if mode is 'periodic':
+			mode_conv = 'wrap'
+		else:
+			mode_conv = mode
+		# Normalize coefficients
 		coeffs = self.coefficients / self.coefficients.sum()
 		if drop_dims:
 			new_coeffs = da.squeeze(coeffs, axis=[self.obj.get_axis_num(di)
@@ -225,7 +233,7 @@ class Window(object):
 		boundary = {self._obj.get_axis_num(di): mode for di in self.dims}
 		if mask is None:
 			mask = da.notnull(new_obj.data)
-		conv = lambda x: im.convolve(x, new_coeffs, mode=mode)
+		conv = lambda x: im.convolve(x, new_coeffs, mode=mode_conv)
 		weights = mask.astype(float).map_overlap(conv, depth=self._depth,
 		                                               boundary=boundary,
 		                                               trim=True)
