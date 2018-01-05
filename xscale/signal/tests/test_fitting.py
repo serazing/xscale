@@ -5,6 +5,15 @@ import numpy as np
 import pandas as pd
 import xscale.signal.fitting as xfit
 
+def test_polyfit():
+	Nt, Nx, Ny = 100, 128, 128
+	rand = xr.DataArray(np.random.rand(Nt, Nx, Ny), dims=['time', 'x', 'y'])
+	slopes = 0.02 * xr.DataArray(np.cos(2 * np.pi * rand.x / Nx), dims=['x'])
+	truth = rand + slopes * rand.time
+	truth = truth.chunk(chunks={'time': 20, 'x': 50, 'y': 50})
+	linfit = xfit.polyfit(truth, dim='time').load()
+	assert np.allclose(linfit.sel(degree=1).mean(dim='y').data, slopes.data,
+	                   rtol=5e-2, atol=1e-4)
 
 def test_sinfit():
 	Nt, Nx, Ny = 100, 128, 128

@@ -12,7 +12,7 @@ import pandas as pd
 from .. import _utils
 
 
-def polyfit(array, dim, deg=1):
+def polyfit(array, dim=None, coord=None, deg=1):
 	"""
 	Least squares polynomial fit.
 	Fit a polynomial ``p(x) = p[deg] * x ** deg + ... + p[0]`` of degree `deg`
@@ -35,30 +35,34 @@ def polyfit(array, dim, deg=1):
 	"""
 	if dim is None:
 		dim = array.dims[0]
-	if _utils.is_scalar(periods):
-		periods = [periods, ]
-	n = 2 * len(periods) + 1
-	# Sort frequencies in ascending order
-	periods.sort(reverse=True)
 	# Re-order the array to place the fitting dimension as the first dimension
 	# + stack the other dimensions
 	array_stacked = _order_and_stack(array, dim)
 	dim_chunk = array.chunks[array.get_axis_num(dim)][0]
-	stacked_dims = [di for di in array.dims if di is not dim]
-	new_dims = [dim, ] + stacked_dims
-	stacked_array = array.transpose(*new_dims).stack(temp_dim=stacked_dims)
-	dim_chunk = array.chunks[array.get_axis_num(dim)][0]
+
+	if coord is None:
+		coord = array[dim]
+	if pd.core.common.is_datetime64_dtype(coord.data):
+		# Use the 1e-9 to scale nanoseconds to seconds (by default, xarray use
+		# datetime in nanoseconds
+		t = coord.data.astype('f8') * 1e-9
+	else:
+		t = coord.data
 	# Build coefficient matrix for the fit
-	x = da.vstack([array[dim].data ** d for d in range(deg + 1)]).T
+	x = da.vstack([t ** d for d in range(deg + 1)]).T
 	x = x.rechunk((dim_chunk, deg + 1))
 	# Solve the least-square system
-	p, err, _, _ = da.linalg.lstsq(x, stacked_array.data)
+	p, err, _, _ = da.linalg.lstsq(x, array_stacked.data)
 	# TO DO: Compute and store the errors associated to the fit
 	# Store the result in a DataArray object
-	new_dims = ('degree',) + stacked_array.dims[1:]
+	new_dims = ('degree',) + array_stacked.dims[1:]
+	new_coords = {co: array_stacked.coords[co] for co in array_stacked.coords
+	              if co is not dim}
 	ds = xr.DataArray(p, name='polynomial_coefficients',
-	                  coords=stacked_array.coords, dims=new_dims)
-	return ds.unstack('temp_dim').assign_coords(degree=range(deg + 1))
+	                  coords=new_coords, dims=new_dims)
+	ds = ds.assign_coords(degree=range(deg + 1))
+	coeffs = _unstack(ds)
+	return coeffs
 
 
 def polyval(coefficients, coord):
@@ -125,7 +129,7 @@ def sinfit(array, periods, dim=None, coord=None, unit='s'):
 		t = coord.data.astype('f8') * 1e-9
 		freqs = 1. / pd.to_timedelta(periods, unit=unit).total_seconds()
 	else:
-		t = coord
+		t = coord.data
 		freqs = 1. / periods
 	# Build coefficient matrix for the fit using the exponential form
 	x = da.vstack([da.cos(2 * np.pi * f * t) for f in reversed(freqs)] +
@@ -201,6 +205,10 @@ def sinval(modes, coord):
 		res += modep['amplitude'] * xr.ufuncs.sin(2 * np.pi * t / periods[p] +
 		                                          modep['phase'] * np.pi / 180.)
 	return res
+
+
+def linreg(array, dim=None, coord=None):
+	return polyfit(array, dim=dim, coord=coord, deg=1)
 
 
 def detrend(array, dim=None, typ='linear', chunks=None):
