@@ -122,12 +122,17 @@ def plot_power_law(power, scale_factor=1., ax=None, **kwargs):
 		If None, uses the current axis.
 	**kwargs : optional
 		Additional arguments to matplotlib.pyplot.plot
+
+	Returns
+	-------
+	lines : Line2D
+		Return a Line2D object created by the matplotlib.axes.Axes.plot method
 	"""
 	if ax is None:
 		ax = plt.gca()
 	xlim = np.array(ax.get_xlim())
 	power_law = scale_factor * xlim ** power
-	ax.plot(xlim, power_law, **kwargs)
+	return ax.plot(xlim, power_law, **kwargs)
 
 
 def fit_power_law(freq, spectrum):
