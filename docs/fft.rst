@@ -37,7 +37,7 @@ For a two-dimensional Fourier transform:
 
 This function takes optionally the
 following parameters:
- - *Spectrum parameters*
+ * *Spectrum parameters*
   - ``nfft``: the number of points used for the FFT
   - ``dim``: the dimensions over which the FFT will be performed
   - ``dx``: the resolution of the dimensions ; if the resolution is not

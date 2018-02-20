@@ -12,7 +12,7 @@ import pandas as pd
 from .. import _utils
 
 
-def polyfit(array, dim=None, coord=None, deg=1):
+def polyfit(array, deg=1, dim=None, coord=None):
 	"""
 	Least squares polynomial fit.
 	Fit a polynomial ``p(x) = p[deg] * x ** deg + ... + p[0]`` of degree `deg`
@@ -22,16 +22,19 @@ def polyfit(array, dim=None, coord=None, deg=1):
 	----------
 	x : xarray.DataArray
 		The array to fit
-	dim : str
-		Dimension along which the fit is performed
-	deg : int
-		Degree of the fitting polynomial
-
+	deg : int, optional
+		Degree of the fitting polynomial, Default is 1.
+	dim : str, optional
+		The dimension along which the data will be fitted. If not precised,
+		the first dimension will be used
+	coord : xarray.Coordinate, optional
+		The coordinates used to based the fitting on.
 
 	Returns
 	-------
 	output : xarray.DataArray
-		Polynomial coefficients
+		Polynomial coefficients with a new dimension to sort the polynomial
+		coefficients by degree
 	"""
 	if dim is None:
 		dim = array.dims[0]
@@ -83,6 +86,88 @@ def polyval(coefficients, coord):
 	"""
 	#TODO
 	raise NotImplementedError
+
+
+def linreg(array, dim=None, coord=None):
+	"""
+	Compute a linear regression using a least-square method
+
+	Parameters
+	----------
+	x : xarray.DataArray
+		The array on which the linear regression is computed
+	dim : str, optional
+		The dimension along which the data will be fitted. If not precised,
+		the first dimension will be used
+	coord : xarray.Coordinate, optional
+		The coordinates used to based the linear regression on.
+
+	Returns
+	-------
+	res : xr.Dataset
+		A Dataset containing the slope and the offset of the linear regression
+	"""
+	linfit = polyfit(array, dim=dim, coord=coord, deg=1)
+	offset = linfit.sel(degree=0, drop=True)
+	slope = linfit.sel(degree=1, drop=True)
+	return xr.Dataset({'offset': offset, 'slope': slope})
+
+
+def trend(array, dim=None, type='linear'):
+	"""
+	Compute the trend over one dimension of the input array.
+
+	Parameters
+	----------
+	array : xarray.DataArray
+		The data on which the trend is computed
+	dim : str, optional
+		Dimension over which the array will be detrended
+	type : {'constant', 'linear', 'quadratic'}, optional
+		Type of trend to be computed. Default is 'linear'.
+
+	Returns
+	-------
+	array_trend : xarray.DataArray
+		The trend associated with the input data
+	"""
+	if type is 'constant':
+		array_trend = array.mean(dim=dim)
+		_, array_trend = xr.broadcast(array, array_trend)
+	elif type is 'linear':
+		linfit = linreg(array, dim=dim)
+		array_trend = array[dim] * linfit['slope'] + linfit['offset']
+	elif type is 'quadratic':
+		raise NotImplementedError
+	else:
+		raise ValueError('This type of trend is not supported')
+	return array_trend
+
+
+def detrend(data, dim=None, type='linear'):
+	"""
+	Remove a trend over one dimension of the data.
+
+	Parameters
+	----------
+	array : xarray.DataArray or xarray.Dataset
+		Data to be detrended
+	dim : str, optional
+		Dimension over which the array will be detrended
+	type : {'constant', 'linear', 'quadratic'}, optional
+		Type of trend to be removed. Default is 'linear'.
+
+	Returns
+	-------
+	data_detrended : xarray.DataArray or xarray.Dataset
+		The detrended data
+	"""
+	if isinstance(data, xr.DataArray):
+		data_trend = trend(data, dim=dim, type=type)
+		data_detrended = data - data_trend
+	elif isinstance(data, xr.Dataset):
+		data_detrended = data.apply(detrend)
+	return data_detrended
 
 
 def sinfit(array, periods, dim=None, coord=None, unit='s'):
@@ -162,7 +247,9 @@ def sinfit(array, periods, dim=None, coord=None, unit='s'):
 def sinval(modes, coord):
 	"""
 	Evaluate a sinusoidal function based on a modal decomposition. Each mode is
-	defined by a period, an amplitude and a phase.
+	defined by a period, an amplitude and a phase. This function may usually
+	be used after a sinusoidal fit using
+	:py:func:`xscale.signal.fitting.sinfit`.
 
 	Parameters
 	----------
@@ -206,23 +293,6 @@ def sinval(modes, coord):
 		                                          modep['phase'] * np.pi / 180.)
 	return res
 
-
-def linreg(array, dim=None, coord=None):
-	return polyfit(array, dim=dim, coord=coord, deg=1)
-
-
-def detrend(array, dim=None, typ='linear', chunks=None):
-	"""
-	Remove the mean, linear or quadratic trend and remove it.
-
-	Parameters
-	----------
-	array : xarray.DataArray
-		DataArray that needs to be detrended along t
-	dim:
-		Dimension over which the array will be detrended
-	"""
-	raise NotImplementedError
 
 
 def _order_and_stack(obj, dim):

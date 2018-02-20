@@ -13,7 +13,39 @@ def test_polyfit():
 	truth = truth.chunk(chunks={'time': 20, 'x': 50, 'y': 50})
 	linfit = xfit.polyfit(truth, dim='time').load()
 	assert np.allclose(linfit.sel(degree=1).mean(dim='y').data, slopes.data,
-	                   rtol=5e-2, atol=1e-4)
+	                   rtol=5e-2, atol=1e-3)
+
+def test_linreg():
+	nt, nx, ny = 100, 128, 128
+	offset = 0.7 * xr.DataArray(np.ones((nt, nx, ny)), dims=['time', 'x', 'y'])
+	slopes = 0.02 * xr.DataArray(np.cos(2 * np.pi * offset.x / nx), dims=['x'])
+	truth = offset + slopes * offset.time
+	truth = truth.chunk(chunks={'time': 20, 'x': 50, 'y': 50})
+	linfit = xfit.linreg(truth, dim='time').mean(dim='y')
+	assert np.allclose(slopes, linfit['slope'].load())
+	assert np.allclose(offset, linfit['offset'].load())
+
+def test_trend():
+	nt, nx, ny = 100, 128, 128
+	offset = 0.7 * xr.DataArray(np.ones((nt, nx, ny)), dims=['time', 'x', 'y'])
+	slopes = 0.02 * xr.DataArray(np.cos(2 * np.pi * offset.x / nx), dims=['x'])
+	truth = offset + slopes * offset.time
+	truth = truth.chunk(chunks={'time': 20, 'x': 50, 'y': 50})
+	trend_mean = xfit.trend(offset, dim='time', type='constant')
+	trend_linear = xfit.trend(truth, dim='time', type='linear')
+	assert np.allclose(offset, trend_mean.load())
+	assert np.allclose(truth, trend_linear.load())
+
+def test_detrend():
+	nt, nx, ny = 100, 128, 128
+	offset = 0.7 * xr.DataArray(np.ones((nt, nx, ny)), dims=['time', 'x', 'y'])
+	slopes = 0.02 * xr.DataArray(np.cos(2 * np.pi * offset.x / nx), dims=['x'])
+	truth = offset + slopes * offset.time
+	truth = truth.chunk(chunks={'time': 20, 'x': 50, 'y': 50})
+	assert np.allclose(0 * offset, xfit.detrend(offset, dim='time',
+	                                            type='constant').load())
+	assert np.allclose(0 * offset, xfit.detrend(truth, dim='time',
+	                                            type='linear').load())
 
 def test_sinfit():
 	Nt, Nx, Ny = 100, 128, 128
@@ -49,6 +81,7 @@ def test_sinfit():
 	            periods=[24, 12],
 	            unit='h').load()
 
+
 def test_sinval():
 	Nt, Nx, Ny = 100, 128, 128
 	offset = 0.4
@@ -71,6 +104,7 @@ def test_sinval():
 	xfit.sinval(ds, time)
 	#One mode reconstruction
 	xfit.sinval(ds.sel(periods=[24,]), time)
+
 
 def test_order_and_stack():
 	rand = xr.DataArray(np.random.rand(100, 128, 128), dims=['time', 'x', 'y'])

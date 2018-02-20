@@ -87,9 +87,9 @@ dimensions passed through the other parameters.
 
 .. ipython:: python
 
-    wt.set(n=15, dim='time', window='boxcar')
+    wt.set(n=20, dim='time', window='boxcar')
     wt.plot()
-    @savefig boxcar_time_n15.png
+    @savefig boxcar_time_n20.png
     plt.show()
 
 If the ``cutoff`` parameter is defined, the :py:meth:`scipy.signal.get_window`
@@ -98,7 +98,7 @@ in respect of the window properties:
 
 .. ipython:: python
 
-    cutoff_10d = 10 # A 10-day frequency in seconds
+    cutoff_10d = 10 # A 10-day cutoff
     dx_1d = 1 # Define the sampling period (one day)
     wt.set(n=20, dim='time', cutoff=cutoff_10d, dx=dx_1d, window='boxcar')
     wt.plot()
@@ -129,9 +129,9 @@ For one-dimensional window:
 
 .. ipython:: python
 
-    wt.set(n=15, dim='time', cutoff=cutoff_10d, dx=dx_1d, window='hanning')
+    wt.set(n=20, dim='time', cutoff=cutoff_10d, dx=dx_1d, window='hanning')
     wt.plot()
-    @savefig hanning_time_n15.png
+    @savefig hanning_time_n20.png
     plt.show()
 
 For two-dimensional window:
@@ -160,12 +160,16 @@ called the dask graph is implemented by mapping and ghosting the
 
 .. ipython:: python
 
+    wt.set(n=20, dim='time', cutoff=cutoff_10d, dx=dx_1d, window='hanning')
     res = wt.convolve()
+    res_valid = wt.convolve(trim=True)
 
 .. ipython:: python
 
-    foo.isel(y=40, x=40).plot()
-    res.isel(y=40, x=40).plot()
+    foo.isel(y=40, x=40).plot(label="Raw data")
+    res.isel(y=40, x=40).plot(label="Filtered data", ls="--")
+    res_valid.isel(y=40, x=40).plot(label="Valid filtered data")
+    plt.legend()
     @savefig time_filtering.png
     plt.show()
 

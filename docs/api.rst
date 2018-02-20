@@ -66,5 +66,8 @@ Fitting methods
 
       signal.fitting.polyfit
       signal.fitting.polyval
+      signal.fitting.linreg
+      signal.fitting.trend
+      signal.fitting.detrend
       signal.fitting.sinfit
       signal.fitting.sinval
