@@ -35,16 +35,16 @@ For a two-dimensional Fourier transform:
 
    S(f_x, f_y, t) = \left | S(f_x, f_y, t) \right | ^2 = \Re[S]^2 + \Im[S]^2,
 
-This function takes optionally the
-following parameters:
- * *Spectrum parameters*
-  - ``nfft``: the number of points used for the FFT
-  - ``dim``: the dimensions over which the FFT will be performed
-  - ``dx``: the resolution of the dimensions ; if the resolution is not
-    precised, it will be inferred from the dimensions associated with the data
- * *Data pre-processing*
-  - ``detrend``: Precise the manner to detrend the data
-  - ``tapering``: Multiply by a ``Tukey`` window with a coefficient a 0.25
+This function takes optionally the following parameters:
+
+* *Spectrum parameters*
+   - ``nfft``: the number of points used for the FFT
+   - ``dim``: the dimensions over which the FFT will be performed
+   - ``dx``: the resolution of the dimensions ; if the resolution is not
+     precised, it will be inferred from the dimensions associated with the data
+* *Data pre-processing*
+   - ``detrend``: Precise the manner to detrend the data
+   - ``tapering``: Multiply by a ``Tukey`` window with a coefficient a 0.25
 
 
 

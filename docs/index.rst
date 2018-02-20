@@ -61,9 +61,9 @@ Index
 
    fft.rst
 
-**Signal**
+**Fitting**
 
-* :doc:`signal`
+* :doc:`fitting`
 
 .. toctree::
    :maxdepth: 1
