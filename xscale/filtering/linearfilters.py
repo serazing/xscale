@@ -64,30 +64,30 @@ class Window(object):
 		Parameters
 		----------
 		n : int, sequence or dict, optional
-			The window order over the dimensions specified through a dictionary
-			or through the ``dim`` parameters. If ``n`` is ``None``, the window
-			order is set to the total size of the corresponding dimensions
-			according to the ``dim`` parameters
+			Window order over dimensions specified through an integer coupled
+			with the ``dim`` parameter. A dictionnary can also be used to specify
+			the order.
 		dim : str or sequence, optional
-			Names of the dimension associated to the window. If ``dim`` is
-			None, all the dimensions are taken.
+			Names of the dimensions associated with the window.
 		cutoff : float, sequence or dict, optional
 			The window cutoff over the dimensions specified through a
-			dictionary, or through the ``dim`` parameters. If `cutoff`` is
-			``None``, the cutoff parameters will be not used in the design
-			the window.
-		dx : float or sequence, optional
-			Define the resolution of the dimensions. If not precised,
-			the resolution is computed directly from the coordinates
-			associated to the dimensions.
-		window : string, tuple of string and parameter values, or dict
-			Desired window to use. See scipy.signal.get_window for a list of
-			windows and required parameters.
-        chunks : int, tuple or dict, optional
-            Chunk sizes along each dimension, e.g., ``5``, ``(5, 5)`` or
-            ``{'x': 5, 'y': 5}``
-		"""
+			dictionnary or coupled with the dim parameter. If None,
+			the cutoff is not used to desgin the filter.
+		dx : float, sequence or dict, optional
+			Define the resolution of the dimensions. If None, the resolution
+			is directly infered from the coordinates associated to the
+			dimensions.
+		trim : bool, optional
+			If True, choose to only keep the valid data not affected by the
+			boundaries.
+		window : string, tupple, or string and parameters values, or dict, optional
+			Window to use, see :py:func:`scipy.signal.get_window` for a list
+			of windows and required parameters
+		chunks : int, tuple or dict, optional
+			Chunk sizes along each dimension, e.g., ``5``, ``(5, 5)`` or
+			``{'x': 5, 'y': 5}``
 
+		"""
 		# Check and interpret n and dims parameters
 		self.n, self.dims = _utils.infer_n_and_dims(self._obj, n, dim)
 		self.ndim = len(self.dims)
