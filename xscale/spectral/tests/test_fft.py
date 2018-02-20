@@ -94,7 +94,7 @@ def test_fft_complex_3d():
 	spectrum_array, spectrum_coords, spectrum_dims = \
 		xfft._fft(chunked_array, nfft={'x': 8, 'y': 6, 'z': 8},
 		          dim=['x', 'y', 'z'], dx={'x':12, 'y': 0.01, 'z': 0.02})
-	assert np.array_equal(np.asarray(spectrum_array),
+	assert np.allclose(np.asarray(spectrum_array),
 	                      np.fft.fftn(a * b * c, s=(8, 6, 8)))
 	assert np.array_equal(spectrum_coords['f_x'], np.fft.fftfreq(8, d=12))
 	assert np.array_equal(spectrum_coords['f_y'], np.fft.fftfreq(6, d=0.01))
@@ -161,10 +161,10 @@ def test_parserval_complex_2d():
 	""" Compare the result from the spectrum.fft function to
 	numpy.fft.fftn
 	"""
-	a, b, c = np.meshgrid([0, 1, 0, 0], [0, 1j, 1j], [0, 1, 1, 1])
+	a, b, c = np.meshgrid([1j, 1, 1, 1j], [0, 1j, 1j], [0, 1, 1, 1])
 	dummy_array = xr.DataArray(a * b * c, dims=['x', 'y', 'z'])
 	chunked_array = dummy_array.chunk(chunks={'x': 2, 'y': 2, 'z': 2})
 	chunked_array_zeromean = chunked_array - chunked_array.mean(dim=['y', 'z'])
-	spec = xfft.fft(chunked_array_zeromean, dim=['y', 'z'])
+	spec = xfft.fft(chunked_array_zeromean, dim=['y', 'z'], sym=True)
 	assert np.array_equal(np.var(a * b * c, axis=(1, 2)),
 	                      xfft.ps(spec).sum(dim=['f_y','f_z']))
