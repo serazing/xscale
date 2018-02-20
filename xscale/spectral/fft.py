@@ -54,7 +54,9 @@ def phase(spectrum, deg=False):
 	res : DataArray
 		The phase spectrum
 	"""
-	return da.angle(spectrum, deg=deg)
+	return xr.DataArray(da.angle(spectrum.data, deg), coords=spectrum.coords,
+	                    dims=spectrum.dims, name='Phase Spectrum',
+	                    attrs=spectrum.attrs)
 
 
 def ps(spectrum):
@@ -162,9 +164,10 @@ def fft(array, nfft=None, dim=None, dx=None, detrend=None, tapering=False,
 		preproc_array = array
 	if tapering:
 		preproc_array = _tapper(array, new_dim)
+	# TODO: Check if this part may work with dask using np.iscomplexobj
 	# If the array is complex, set the symmetry parameters to True
-	if sym is False and np.iscomplexobj(array):
-		sym = True
+	#if sym is False and np.iscomplexobj(array):
+	#	sym = True
 	spectrum_array, spectrum_coords, spectrum_dims = \
 		_fft(preproc_array, new_nfft, new_dim, new_dx, shift=shift,
 		     chunks=chunks, sym=sym)
@@ -191,23 +194,26 @@ def _fft(array, nfft, dim, dx, shift=False, chunks=None, sym=True):
 	for di in dim:
 		if di in array.dims:
 			axis_num = array.get_axis_num(di)
-			dim_length = array.shape[axis_num]
 			# Compute the resolution of the different dimension
 			if dx[di] is None:
 				dx[di] = _utils.get_dx(array, di)
 			#FFT part
 			if first and not sym:
-				# The first FFT is performed on real numbers: the use of rfft is faster
+				# The first FFT is performed on real numbers: the use of rfft
+				# is faster
 				spectrum_coords['f_' + di] = np.fft.rfftfreq(nfft[di], dx[di])
 				spectrum_array = \
-					(da.fft.rfft(spectrum_array.rechunk({axis_num: dim_length}),
+					(da.fft.rfft(spectrum_array.rechunk({axis_num: nfft[di]}),
+					             n=nfft[di],
 					             axis=axis_num).
 					 rechunk({axis_num: chunks[axis_num][0]}))
 			else:
-				# The successive FFTs are performed on complex numbers: need to use classic fft
+				# The successive FFTs are performed on complex numbers: need to
+				# use classic fft
 				spectrum_coords['f_' + di] = np.fft.fftfreq(nfft[di], dx[di])
 				spectrum_array = \
-					(da.fft.fft(spectrum_array.rechunk({axis_num: dim_length}),
+					(da.fft.fft(spectrum_array.rechunk({axis_num: nfft[di]}),
+					            n=nfft[di],
 					            axis=axis_num).
 				    rechunk({axis_num: chunks[axis_num][0]}))
 				if shift is True:
@@ -259,8 +265,6 @@ def _compute_norm_factor(array, nfft, dim, dx, tapering, sym=True):
 			s1 = nfft[di]
 			s2 = s1
 		ps_factor /= s1 ** 2
-		#TODO: check if the normalization for the PSD is 1 / (df * nfft) as used
-		# in the following
 		psd_factor /= fs * s2
 		if first and not sym:
 			ps_factor *= 2.

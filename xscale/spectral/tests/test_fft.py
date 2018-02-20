@@ -29,7 +29,7 @@ def test_fft_complex_1d():
 	chunked_array = dummy_array.chunk(chunks={'x': 2})
 	spectrum_array, spectrum_coords, spectrum_dims = \
 		xfft._fft(chunked_array, nfft={'x': 16}, dim=['x'], dx={'x': 0.5})
-	assert np.array_equal(np.asarray(spectrum_array), np.fft.fft(a))
+	assert np.array_equal(np.asarray(spectrum_array), np.fft.fft(a, n=16))
 	assert np.array_equal(spectrum_coords['f_x'], np.fft.fftfreq(16, d=0.5))
 	assert 'f_x' in spectrum_dims
 
@@ -44,7 +44,7 @@ def test_fft_real_2d():
 		xfft._fft(chunked_array, nfft={'y': 14, 'z': 18}, dim=['y', 'z'],
 		          dx={'y': 0.01, 'z': 0.02}, sym=False)
 	assert np.array_equal(np.asarray(spectrum_array),
-	                      np.fft.rfftn(a, axes=(2, 1)))
+	                      np.fft.rfftn(a, s=(18, 14), axes=(2, 1)))
 	assert np.array_equal(spectrum_coords['f_y'], np.fft.rfftfreq(14, d=0.01))
 	assert np.array_equal(spectrum_coords['f_z'], np.fft.fftfreq(18, d=0.02))
 	assert ('x', 'f_y', 'f_z') == spectrum_dims
@@ -58,12 +58,12 @@ def test_fft_complex_2d():
 	dummy_array = xr.DataArray(a * b * c, dims=['x', 'y', 'z'])
 	chunked_array = dummy_array.chunk(chunks={'x': 2, 'y': 2, 'z': 2})
 	spectrum_array, spectrum_coords, spectrum_dims = \
-		xfft._fft(chunked_array, nfft={'y': 14, 'z': 18}, dim=['y', 'z'],
+		xfft._fft(chunked_array, nfft={'y': 6, 'z': 8}, dim=['y', 'z'],
 		          dx={'y': 0.01, 'z': 0.02})
 	assert np.array_equal(np.asarray(spectrum_array),
-	                      np.fft.fftn(a * b * c, axes=(-2, -1)))
-	assert np.array_equal(spectrum_coords['f_y'], np.fft.fftfreq(14, d=0.01))
-	assert np.array_equal(spectrum_coords['f_z'], np.fft.fftfreq(18, d=0.02))
+	                      np.fft.fftn(a * b * c, s=(8, 6), axes=(2, 1)))
+	assert np.array_equal(spectrum_coords['f_y'], np.fft.fftfreq(6, d=0.01))
+	assert np.array_equal(spectrum_coords['f_z'], np.fft.fftfreq(8, d=0.02))
 	assert ('x', 'f_y', 'f_z') == spectrum_dims
 
 
@@ -78,7 +78,7 @@ def test_fft_real_3d():
 		          dim=['x', 'y', 'z'], dx={'x':12, 'y': 0.01, 'z': 0.02},
 		          sym=False)
 	assert np.array_equal(np.asarray(spectrum_array),
-	                      np.fft.rfftn(a, axes=(1, 2, 0)))
+	                      np.fft.rfftn(a, s=(14, 18, 11), axes=(1, 2, 0)))
 	assert np.array_equal(spectrum_coords['f_x'], np.fft.rfftfreq(11, d=12))
 	assert np.array_equal(spectrum_coords['f_y'], np.fft.fftfreq(14, d=0.01))
 	assert np.array_equal(spectrum_coords['f_z'], np.fft.fftfreq(18, d=0.02))
@@ -92,13 +92,13 @@ def test_fft_complex_3d():
 	dummy_array = xr.DataArray(a * b * c, dims=['x', 'y', 'z'])
 	chunked_array = dummy_array.chunk(chunks={'x': 2, 'y': 2, 'z': 2})
 	spectrum_array, spectrum_coords, spectrum_dims = \
-		xfft._fft(chunked_array, nfft={'x': 11, 'y': 14, 'z': 18},
+		xfft._fft(chunked_array, nfft={'x': 8, 'y': 6, 'z': 8},
 		          dim=['x', 'y', 'z'], dx={'x':12, 'y': 0.01, 'z': 0.02})
 	assert np.array_equal(np.asarray(spectrum_array),
-	                      np.fft.fftn(a * b * c))
-	assert np.array_equal(spectrum_coords['f_x'], np.fft.fftfreq(11, d=12))
-	assert np.array_equal(spectrum_coords['f_y'], np.fft.fftfreq(14, d=0.01))
-	assert np.array_equal(spectrum_coords['f_z'], np.fft.fftfreq(18, d=0.02))
+	                      np.fft.fftn(a * b * c, s=(8, 6, 8)))
+	assert np.array_equal(spectrum_coords['f_x'], np.fft.fftfreq(8, d=12))
+	assert np.array_equal(spectrum_coords['f_y'], np.fft.fftfreq(6, d=0.01))
+	assert np.array_equal(spectrum_coords['f_z'], np.fft.fftfreq(8, d=0.02))
 	assert ('f_x', 'f_y', 'f_z') == spectrum_dims
 
 
@@ -114,10 +114,10 @@ def test_fft_warning():
 
 @pytest.mark.parametrize("tapering",  [True, False])
 def test_spectrum_1d(tapering):
-	a = [0, 1, 0, 0]
-	dummy_array = xr.DataArray(a, dims=['x'])
-	chunked_array = dummy_array.chunk(chunks={'x': 2})
-	xfft.fft(chunked_array, dim=['x'], tapering=tapering).load()
+	a = np.mgrid[:5, :5, :5][0]
+	dummy_array = xr.DataArray(a, dims=['time', 'y', 'z'])
+	chunked_array = dummy_array.chunk(chunks={'time': 2, 'y': 2, 'z': 2})
+	xfft.fft(chunked_array, dim='time', dx=1., tapering=tapering).load()
 
 
 @pytest.mark.parametrize("tapering",  [True, False])

@@ -10,13 +10,14 @@ Filtering tools
 ===============
 .. currentmodule:: xscale
 
-Filtering
----------
+Linear filtering
+----------------
 .. autosummary::
    :toctree: generated/
 
           Window.set
           Window.convolve
+          Window.boundary_weights
           Window.plot
 
 
@@ -56,3 +57,17 @@ Signal generator
       signal.generator.rednoise
       signal.generator.ar
       signal.generator.window1d
+
+
+Fitting methods
+---------------
+.. autosummary::
+   :toctree: generated
+
+      signal.fitting.polyfit
+      signal.fitting.polyval
+      signal.fitting.linreg
+      signal.fitting.trend
+      signal.fitting.detrend
+      signal.fitting.sinfit
+      signal.fitting.sinval

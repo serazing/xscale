@@ -44,13 +44,18 @@ def plot_spectrum(spectrum, freqs=None, drop_zero_frequency=True, ax=None,
 	"""
 	if ax is None:
 		ax = plt.gca()
-	if freqs is not None:
-		if variance_preserving:
-			ax.plot(freqs, spectrum / np.log10(freqs), **kwargs)
-		else:
-			ax.plot(freqs, spectrum, **kwargs)
-	else:
-		spectrum.plot(**kwargs)
+	if freqs is None:
+		freqs = spectrum[spectrum.dims[0]]
+	if drop_zero_frequency:
+		spectrum = spectrum.where(freqs != 0.)
+		freqs = freqs.where(freqs != 0.)
+		#import pytest
+		#pytest.set_trace()
+	if variance_preserving:
+		spectrum = freqs * spectrum
+		xlog = True
+	ax.plot(freqs, spectrum, **kwargs)
+
 	if xlog or loglog:
 		ax.set_xscale('log', nonposx='clip')
 		try:
@@ -59,16 +64,30 @@ def plot_spectrum(spectrum, freqs=None, drop_zero_frequency=True, ax=None,
 			ax.set_xlim((10 ** xmin, 10 ** xmax))
 		except TypeError:
 			try:
-				xmin = np.ceil(np.log10(np.abs(freqs[1,]))) - 1
-				xmax = np.ceil(np.log10(np.abs(freqs[-1,])))
+				xmin = np.ceil(np.log10(abs(freqs[1]))) - 1
+				xmax = np.ceil(np.log10(abs(freqs[-1])))
 				ax.set_xlim((10 ** xmin, 10 ** xmax))
 			except TypeError:
 				pass
 	else:
-			ax.set_xlim(xlim)
-	ax.set_ylim(ylim)
+		ax.set_xlim(xlim)
+
 	if ylog or loglog:
-		ax.set_yscale('log', nonposx='clip')
+		ax.set_yscale('log', nonposy='clip')
+		try:
+			ymin = np.ceil(np.log10(np.abs(ylim[0]))) - 1
+			ymax = np.ceil(np.log10(np.abs(ylim[1])))
+			ax.set_ylim((10 ** ymin, 10 ** ymax))
+		except TypeError:
+			try:
+				ymin = np.ceil(np.log10(spectrum.min())) - 1
+				ymax = np.ceil(np.log10(spectrum.max()))
+				ax.set_ylim((10 ** ymin, 10 ** ymax))
+			except TypeError:
+				pass
+	else:
+		ax.set_ylim(ylim)
+
 	twiny = ax.twiny()
 	if xlog or loglog:
 		twiny.set_xscale('log', nonposx='clip')
@@ -103,13 +122,17 @@ def plot_power_law(power, scale_factor=1., ax=None, **kwargs):
 		If None, uses the current axis.
 	**kwargs : optional
 		Additional arguments to matplotlib.pyplot.plot
+
+	Returns
+	-------
+	lines : Line2D
+		Return a Line2D object created by the matplotlib.axes.Axes.plot method
 	"""
 	if ax is None:
 		ax = plt.gca()
 	xlim = np.array(ax.get_xlim())
-
 	power_law = scale_factor * xlim ** power
-	plt.plot(xlim, power_law, **kwargs)
+	return ax.plot(xlim, power_law, **kwargs)
 
 
 def fit_power_law(freq, spectrum):

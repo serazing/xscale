@@ -14,12 +14,16 @@ import scipy.ndimage as im
 from dask.diagnostics import ProgressBar
 import dask.array as da
 import xarray as xr
+from xarray.ufuncs import log10
 # Matplotlib
+import matplotlib
 import matplotlib.pyplot as plt
-from matplotlib import gridspec
+from matplotlib import transforms
 # Current package
 from .. import _utils
+from ..spectral.fft import fft, psd
 
+import pdb
 
 @xr.register_dataarray_accessor('window')
 class Window(object):
@@ -31,17 +35,16 @@ class Window(object):
 
 	def __init__(self, xarray_obj):
 		self._obj = xarray_obj
-		self.obj = xarray_obj
-		self.n = None
-		self.dims = None
-		self.ndim = 0
-		self.cutoff = None
-		self.window = None
-		self.order = None
-		self.coefficients = 1.
-		self.coords = []
-		self._depth = dict()
-		self.fnyq = dict()
+		self.obj = xarray_obj # Associated xarray object
+		self.n = None # Size of the window
+		self.dims = None # Dimensions of the window
+		self.ndim = 0 # Number of dimensions
+		self.cutoff = None # Window cutoff
+		self.window = None # Window type (scipy-like type)
+		self.order = None # Window order
+		self.coefficients = 1. # Window coefficients
+		self._depth = dict() # Overlap between different blocks
+		self.fnyq = dict() # Nyquist frequency
 
 	def __repr__(self):
 		"""
@@ -62,15 +65,15 @@ class Window(object):
 		----------
 		n : int, sequence or dict, optional
 			The window order over the dimensions specified through a dictionary
-			or through the ``dims`` parameters. If ``n`` is ``None``, the window
+			or through the ``dim`` parameters. If ``n`` is ``None``, the window
 			order is set to the total size of the corresponding dimensions
-			according to the ``dims`` parameters
+			according to the ``dim`` parameters
 		dim : str or sequence, optional
-			Names of the dimension associated to the window. If ``dims`` is
+			Names of the dimension associated to the window. If ``dim`` is
 			None, all the dimensions are taken.
 		cutoff : float, sequence or dict, optional
 			The window cutoff over the dimensions specified through a
-			dictionary, or through the ``dims`` parameters. If `cutoff`` is
+			dictionary, or through the ``dim`` parameters. If `cutoff`` is
 			``None``, the cutoff parameters will be not used in the design
 			the window.
 		dx : float or sequence, optional
@@ -106,7 +109,7 @@ class Window(object):
 			axis_num = self.obj.get_axis_num(di)
 			axis_chunk = self.obj.chunks[axis_num][0]
 			if di in self.dims:
-				self._depth[axis_num] = int(self.order[di] / 2)
+				self._depth[axis_num] = self.order[di] // 2
 				if self.dx[di] is None:
 					self.dx[di] = _utils.get_dx(self.obj, di)
 				self.fnyq[di] = 1. / (2. * self.dx[di])
@@ -127,60 +130,124 @@ class Window(object):
 				#self.coefficients = np.outer(self.coefficients, coefficients1d)
 				self.coefficients = (np.expand_dims(self.coefficients, axis=-1)
 				                     * coefficients1d_dask)
-				# TODO: Try to add the rotational convention using meshgrid, in complement to the outer product
-				# TODO: check the order of dimension of the kernel compared to the DataArray/DataSet objects
-				self.coefficients = self.coefficients.squeeze()
+				# TODO: Try to add the rotational convention using meshgrid,
+				# in complement to the outer product
+				# TODO: check the order of dimension of the kernel compared to
+				# the DataArray/DataSet objects
+				#self.coefficients = self.coefficients.squeeze()
 			else:
 				self.coefficients = np.expand_dims(self.coefficients,
 				                                   axis=axis_num)
 
-
-	def convolve(self, mode='reflect', weights=None, compute=True):
+	def convolve(self, mode='reflect', weights=1., trim=False, compute=False):
 		"""Convolve the current window with the data
 
 		Parameters
 		----------
-		mode : {'reflect', 'same', 'valid'}, optional
-
-		weights :
-
+		mode : {'reflect', 'periodic', 'any-constant'}, optional
+			The mode parameter determines how the array borders are handled.
+			Default is 'reflect'.
+		weights : DataArray, optional
+			Array to weight the result of the convolution close to the
+			boundaries.
+		trim : bool, optional
+			If True, choose to only keep the valid data not affected by the
+			boundaries.
 		compute : bool, optional
-			If True, the computation is performed after the dask graph has been made. If False, only the dask graph is
-			made is the computation will be performed later on. The latter allows the integration into a larger dask
-			graph, which could include other computational steps.
+			If True, the computation is performed after the dask graph has
+			been made. If False, only the dask graph is made is the computation
+			will be performed later on.
 
 		Returns
 		-------
 		res : xarray.DataArray
-			Return the filtered  the low-passed filtered
+			Return a filtered DataArray
 		"""
 		# Check if the data has more dimensions than the window and add
 		# extra-dimensions to the window if it is the case
-		coeffs = self.coefficients / np.sum(self.coefficients)
-		# TODO: Modify the mask section because it consumes too much memory when looking for notnull cells
-		mask = self.obj.notnull()
-		if weights is None:
-			weights = im.convolve(mask.astype(float), coeffs, mode=mode)
-		filled_data = self.obj.fillna(0.).data
-
-		#def conv(x):
-		#	xf = im.convolve(x, coeffs, mode=mode)
-		#	return xf
-
-		conv = lambda x: im.convolve(x, coeffs, mode=mode)
-
-		data = filled_data.map_overlap(conv, depth=self._depth, boundary=mode,
-		                               trim=True)
+		coeffs = self.coefficients / self.coefficients.sum()
+		if trim:
+			mode = np.nan
+			mode_conv = 'constant'
+			new_data = self.obj.data
+		else:
+			new_data = self.obj.fillna(0.).data
+			if mode is 'periodic':
+				mode_conv = 'wrap'
+			else:
+				mode_conv = mode
+		boundary = {self._obj.get_axis_num(di): mode for di in self.dims}
+		conv = lambda x: im.convolve(x, coeffs, mode=mode_conv)
+		data_conv = new_data.map_overlap(conv, depth=self._depth,
+		                                       boundary=boundary,
+		                                       trim=True)
+		res = 1. / weights *  xr.DataArray(data_conv, dims=self.obj.dims,
+		                                              coords=self.obj.coords,
+		                                              name=self.obj.name)
 		if compute:
 			with ProgressBar():
-				out = data.compute()
+				out = res.compute()
 		else:
-			out = data
-		res = 1. / weights  * xr.DataArray(out, dims=self.obj.dims,
-		                                   coords=self.obj.coords,
-		                                   name=self.obj.name)
-		return res.where(mask == 1)
+			out = res
+		return out
 
+	def boundary_weights(self, mode='reflect', mask=None, drop_dims=[],
+	                     compute=False):
+		"""
+		Compute the boundary weights
+
+		Parameters
+		----------
+		mode : {'reflect', 'periodic', 'any-constant'}, optional
+			The mode parameter determines how the array borders are handled.
+			Default is 'reflect'.
+		mask : array-like, optional
+			Specify the mask, if None the mask is inferred from missing values
+		drop_dims : list, optional
+			Specify dimensions along which the weights do not need to be
+			computed
+		compute : bool, optional
+			If True, the computation is performed after the dask graph has
+			been made. If False, only the dask graph is made is the computation
+			will be performed later on.
+
+		Returns
+		-------
+		weights : xarray.DataArray
+			Return a DataArray containing the weights
+		"""
+		if mode is 'periodic':
+			mode_conv = 'wrap'
+		else:
+			mode_conv = mode
+		# Normalize coefficients
+		coeffs = self.coefficients / self.coefficients.sum()
+		if drop_dims:
+			new_coeffs = da.squeeze(coeffs, axis=[self.obj.get_axis_num(di)
+		                                          for di in drop_dims])
+		else:
+			new_coeffs = coeffs
+		new_obj = self.obj.isel(**{di: 0 for di in drop_dims}).squeeze()
+		#depth = {new_obj.get_axis_num(di): self.order[di] // 2
+		#         for di in self.dims}
+		boundary = {self._obj.get_axis_num(di): mode for di in self.dims}
+		if mask is None:
+			mask = da.notnull(new_obj.data)
+		conv = lambda x: im.convolve(x, new_coeffs, mode=mode_conv)
+		weights = mask.astype(float).map_overlap(conv, depth=self._depth,
+		                                               boundary=boundary,
+		                                               trim=True)
+
+		res = xr.DataArray(mask * weights, dims=new_obj.dims,
+		                                   coords=new_obj.coords,
+		                                   name='boundary_weights')
+		res = res.where(res != 0)
+		if compute:
+			with ProgressBar():
+				out = res.compute()
+		else:
+			out = res
+		return out
 
 	def tapper(self, overlap=0.):
 		"""
@@ -204,125 +271,156 @@ class Window(object):
 		                   name=self.obj.name)
 		return res
 
-
-	def boundary_weights(self, mode='reflect', drop_dims=None):
-		"""
-		Compute the boundary weights
-
-		Parameters
-		----------
-			mode:
-
-			drop_dims:
-				Specify dimensions along which the mask is constant
-
-		Returns
-		-------
-		"""
-		mask = self.obj.notnull()
-		new_dims = [di for di in self.obj.dims if di not in drop_dims]
-		new_coords = {di:self.obj[di] for di in drop_dims if di not in drop_dims}
-		mask = mask.isel(**{di:0 for di in drop_dims})
-		weights = im.convolve(mask.astype(float), self.coefficients, mode=mode)
-		res = xr.DataArray(weights, dims=new_dims, coords=new_coords, name='boundary weights')
-		return res.where(mask == 1)
-
 	def plot(self):
 		"""
 		Plot the weights distribution of the window and the associated
 		spectrum (work only for 1D and 2D windows).
 		"""
+		win_array = xr.DataArray(self.coefficients.squeeze(),
+		                         dims=self.dims).squeeze()
+		win_spectrum = psd(fft(win_array, nfft=1024, dim=self.dims,
+		                                  dx=self.dx, sym=True))
+		win_spectrum_norm = 20 * log10(win_spectrum / abs(win_spectrum).max())
 		if self.ndim == 1:
-
-			dim = self.dims[0]
-			# Compute 1D spectral response
-			spectrum = np.fft.rfft(self.coefficients.squeeze(), 1024) / (len(self.coefficients.squeeze()) / 2.0)
-			freq = np.fft.rfftfreq(1024, d=self.dx[dim])
-			response = 20 * np.log10(np.abs(spectrum / abs(spectrum).max()))
-			# Look for the cutoff frequency at -3 db and  -6 db
-			# Useful tools to check the filter selectivity
-			f3db = freq[np.argmin(np.abs(response + 3))]
-			print('f3db=%f' % f3db)
-			f6db = freq[np.argmin(np.abs(response + 6))]
-			print('f6db=%f' % f6db)
-			# Plot window properties
-			fig, (ax1, ax2) = plt.subplots(nrows=1, ncols=2, figsize=(10, 5))
-
-			# First plot: weight distribution
-			n = self.n[0]
-			ax1.plot(np.linspace(-n / 2, n / 2, n), self.coefficients.squeeze(), lw=1.5)
-			ax1.set_xlim((-n / 2, n / 2))
-			ax1.set_ylabel("Amplitude")
-			ax1.set_xlabel("Sample")
-
-			# Second plot: frequency response
-			ax2.semilogx(freq, response, lw=1.5)
-			ax2.plot([0, f3db], [-3, -3], lw=1, color='r')
-			ax2.plot([0, f6db], [-6, -6], lw=1, color='g')
-			ax2.set_ylim((-120, 0))
-			ax2.set_ylabel("Normalized magnitude [dB]")
-			ax2.set_xlabel("Frequency [cycles per sample]")
-			ax2.grid(True)
-
-			plt.tight_layout()
-
+			_plot1d_window(win_array, win_spectrum_norm)
 		elif self.ndim == 2:
-			# Compute 2D spectral response
-			nx = self.n[0]
-			ny = self.n[1]
-			spectrum = (np.fft.fft2(self.coefficients.squeeze(), [1024, 1024]) /
-			            (np.size(self.coefficients.squeeze()) / 2.0))
-			response = np.abs(np.fft.fftshift(spectrum / abs(spectrum).max()))
-			fx = np.fft.fftshift(np.fft.fftfreq(1024, self.dx[self.dims[0]]))
-			fy = np.fft.fftshift(np.fft.fftfreq(1024, self.dx[self.dims[0]]))
-			gs = gridspec.GridSpec(2, 4, width_ratios=[2, 1, 2, 1], height_ratios=[1, 2])
-			plt.figure(figsize=(11.69, 8.27))
-
-			# Weight disribution along x
-			ax_nx = plt.subplot(gs[0])
-			ax_nx.plot(np.arange(-nx, nx + 1), self.coefficients.squeeze()[:, ny])
-			ax_nx.set_xlim((-nx, nx))
-
-			# Weight disribution along y
-			ax_nx = plt.subplot(gs[5])
-			ax_nx.plot(self.coefficients.squeeze()[nx, :], np.arange(-ny, ny + 1))
-			ax_nx.set_ylim((-ny, ny))
-
-			# Full 2d weight distribution
-			ax_n2d = plt.subplot(gs[4])
-			nx2d, ny2d = np.meshgrid(np.arange(-nx, nx + 1), np.arange(-ny, ny + 1), indexing='ij')
-			ax_n2d.pcolormesh(nx2d, ny2d, self.coefficients.squeeze())
-			ax_n2d.set_xlim((-nx, nx))
-			ax_n2d.set_ylim((-ny, ny))
-			box = dict(facecolor='white', pad=10.0)
-			ax_n2d.text(0.97, 0.97, r'$w(n_x,n_y)$', fontsize='x-large', bbox=box, transform=ax_n2d.transAxes,
-			            horizontalalignment='right', verticalalignment='top')
-
-			# Frequency response for fy = 0
-			ax_fx = plt.subplot(gs[2])
-			spectrum_plot(ax_fx, fx, response[:, 512].squeeze(),)
-			# ax_fx.set_xlim(xlim)
-			ax_fx.grid(True)
-			ax_fx.set_ylabel(r'$R(f_x,0)$', fontsize=24)
-
-			# Frequency response for fx = 0
-			ax_fy = plt.subplot(gs[7])
-			spectrum_plot(ax_fy, response[:, 512].squeeze(), fy)
-			#ax_fy.set_ylim(ylim)
-			ax_fy.grid(True)
-			ax_fy.set_xlabel(r'$,R(0,f_y)$', fontsize=24)
-
-			# Full 2D frequency response
-			ax_2d = plt.subplot(gs[6])
-			spectrum2d_plot(ax_2d, fx, fy, response, zlog=True)
-			ax_2d.set_ylabel(r'$f_y$', fontsize=24)
-			ax_2d.set_xlabel(r'$f_x$', fontsize=24)
-			ax_2d.grid(True)
-			box = dict(facecolor='white', pad=10.0)
-			ax_2d.text(0.97, 0.97, r'$R(f_x,f_y)$', fontsize='x-large', bbox=box, transform=ax_2d.transAxes,
-			           horizontalalignment='right', verticalalignment='top')
-			plt.tight_layout()
-
+			_plot2d_window(win_array, win_spectrum_norm)
 		else:
-			raise ValueError("This number of dimension is not supported by the plot function")
+			raise ValueError("This number of dimension is not supported by the "
+			                 "plot function")
 
+
+def _plot1d_window(win_array, win_spectrum_norm):
+
+	dim = win_spectrum_norm.dims[0]
+	freq = win_spectrum_norm[dim]
+	min_freq = np.extract(freq > 0, freq).min()
+	cutoff_3db = 1. / abs(freq[np.argmin(np.abs(win_spectrum_norm + 3))])
+	cutoff_6db = 1. / abs(freq[np.argmin(np.abs(win_spectrum_norm + 6))])
+
+	# Plot window properties
+	fig, (ax1, ax2) = plt.subplots(nrows=1, ncols=2, figsize=(10, 5))
+
+	# First plot: weight distribution
+	win_array.plot(ax=ax1)
+	ax1.set_ylabel("Amplitude")
+	ax1.set_xlabel("Sample")
+
+	# Second plot: frequency response
+	win_spectrum_norm.plot(ax=ax2)
+	ax2.set_xscale('symlog', linthreshx=min_freq,
+	               subsx=[2, 3, 4, 5, 6, 7, 8, 9])
+	box = dict(boxstyle='round', facecolor='white', alpha=1)
+	textstr = '$\lambda^{3dB}=%.1f$ \n $\lambda^{6dB}=%.1f$' % (cutoff_3db,
+	                                                            cutoff_6db)
+	ax2.text(0.5, 0.45, textstr, transform=ax2.transAxes, fontsize=14,
+	         verticalalignment='top',
+	         horizontalalignment='center', bbox=box)
+	ax2.set_ylim((-200, 20))
+	ax2.set_ylabel("Normalized magnitude [dB]")
+	ax2.set_xlabel("Frequency [cycles per sample]")
+	ax2.grid(True)
+	plt.tight_layout()
+
+
+def _plot2d_window(win_array, win_spectrum_norm):
+
+	n_x, n_y = win_array.shape
+	n_fx, n_fy = win_spectrum_norm.shape
+	dim_fx, dim_fy = win_spectrum_norm.dims
+	win_array_x = win_array[:, n_y // 2]
+	win_array_y = win_array[n_x // 2, :]
+	win_spectrum_x = win_spectrum_norm.isel(**{dim_fy: n_fy // 2})
+	win_spectrum_y = win_spectrum_norm.isel(**{dim_fx: n_fx // 2})
+	freq_x, freq_y = win_spectrum_norm[dim_fx], win_spectrum_norm[dim_fy]
+
+	min_freq_x = np.extract(freq_x > 0, freq_x).min()
+	min_freq_y = np.extract(freq_y > 0, freq_y).min()
+
+	cutoff_x_3db = 1. / abs(freq_x[np.argmin(np.abs(win_spectrum_x + 3))])
+	cutoff_x_6db = 1. / abs(freq_x[np.argmin(np.abs(win_spectrum_x + 6))])
+	cutoff_y_3db = 1. / abs(freq_y[np.argmin(np.abs(win_spectrum_y + 3))])
+	cutoff_y_6db = 1. / abs(freq_y[np.argmin(np.abs(win_spectrum_y + 6))])
+
+	fig = plt.figure(1, figsize=(16, 8))
+	# Definitions for the axes
+	left, width = 0.05, 0.25
+	bottom, height = 0.05, 0.5
+	offset = 0.05
+	bottom_h = bottom + height + offset
+
+	rect_2D_weights = [left, bottom, width, height]
+	rect_x_weights = [left, bottom_h, width, height / 2]
+	rect_y_weights = [left + width + offset, bottom, width / 2, height]
+	rect_2D_spectrum = [left + 3. / 2 * width + 2 * offset, bottom, width,
+	                    height]
+	rect_x_spectrum = [left + 3. / 2 * width + 2 * offset, bottom_h, width,
+	                   height / 2]
+	rect_y_spectrum = [left + 5. / 2 * width + 3 * offset, bottom,
+	                   width / 2, height]
+	ax_2D_weights = plt.axes(rect_2D_weights)
+	ax_x_weights = plt.axes(rect_x_weights)
+	ax_y_weights = plt.axes(rect_y_weights)
+	ax_x_spectrum = plt.axes(rect_x_spectrum)
+	ax_y_spectrum = plt.axes(rect_y_spectrum)
+	ax_2D_spectrum = plt.axes(rect_2D_spectrum)
+
+	# Weight disribution along y
+	win_array_y.squeeze().plot(ax=ax_x_weights)
+	ax_x_weights.set_ylabel('')
+	ax_x_weights.set_xlabel('')
+
+	# Weight disribution along x
+	base = ax_y_weights.transData
+	rot = transforms.Affine2D().rotate_deg(270)
+	win_array_x.plot(ax=ax_y_weights, transform=rot + base)
+	ax_y_weights.set_ylabel('')
+	ax_y_weights.set_xlabel('')
+
+	# Full 2d weight distribution
+	win_array.plot(ax=ax_2D_weights, add_colorbar=False)
+
+	# Spectrum along f_y
+	win_spectrum_y.plot(ax=ax_x_spectrum)
+	ax_x_spectrum.set_xscale('symlog', linthreshx=min_freq_y,
+	                         subsx=[2, 3, 4, 5, 6, 7, 8, 9])
+	ax_x_spectrum.set_ylim([-200, 20])
+	ax_x_spectrum.grid()
+	ax_x_spectrum.set_ylabel("Normalized magnitude [dB]")
+	ax_x_spectrum.set_xlabel("")
+	box = dict(boxstyle='round', facecolor='white', alpha=1)
+	# place a text box in upper left in axes coords
+	textstr = '$\lambda_y^{3dB}=%.1f$ \n $\lambda_y^{6dB}=%.1f$' % (
+		cutoff_y_3db, cutoff_y_6db)
+	ax_x_spectrum.text(0.5, 0.45, textstr,
+	                   transform=ax_x_spectrum.transAxes,
+	                   fontsize=14, verticalalignment='top',
+	                   horizontalalignment='center', bbox=box)
+
+	# Spectrum along f_x
+	base = ax_y_spectrum.transData
+	rot = transforms.Affine2D().rotate_deg(270)
+	win_spectrum_x.squeeze().plot(ax=ax_y_spectrum,
+	                              transform=rot + base)
+	ax_y_spectrum.set_yscale('symlog', linthreshy=min_freq_x,
+	                                   subsy=[2, 3, 4, 5, 6, 7, 8, 9])
+	ax_y_spectrum.set_xlim([-200, 20])
+	ax_y_spectrum.grid()
+	ax_y_spectrum.set_ylabel("")
+	ax_y_spectrum.set_xlabel("Normalized magnitude [dB]")
+	textstr = '$\lambda_x^{3dB}=%.1f$ \n $\lambda_x^{6dB}=%.1f$' % (
+		cutoff_x_3db, cutoff_x_6db)
+	ax_y_spectrum.text(0.7, 0.5, textstr, transform=ax_y_spectrum.transAxes,
+	                                      fontsize=14,
+	                                      verticalalignment='center',
+	                                      horizontalalignment='right',
+	                                      bbox=box)
+
+	# Full 2d spectrum
+	win_spectrum_norm.plot(ax=ax_2D_spectrum,
+	                       add_colorbar=False,
+	                       vmin=-200,
+	                       vmax=0,
+	                       cmap=matplotlib.cm.Spectral_r)
+	ax_2D_spectrum.set_xscale('symlog', linthreshx=min_freq_y)
+	ax_2D_spectrum.set_yscale('symlog', linthreshy=min_freq_x)

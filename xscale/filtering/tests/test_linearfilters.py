@@ -71,6 +71,12 @@ def test_compute_boundary_weights(window):
 	win2d.set(window=window, cutoff=20, dim=['y', 'x'], n=[24, 36])
 	win2d.boundary_weights(drop_dims=['time'])
 
+@pytest.mark.parametrize("window",  window_list)
+def test_compute_boundary_weights(window):
+	win2d = sig_xyt.window
+	win2d.set(window=window, cutoff=20, dim=['y', 'x'], n=[24, 36])
+	win2d.convolve()
+
 
 #TODO: how can we test plot using Travis CI without having a core dump issue
 #@pytest.mark.parametrize("window",  window_list)

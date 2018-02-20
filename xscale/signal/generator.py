@@ -131,12 +131,12 @@ def example_xyt(boundaries=False):
 	x1d = np.linspace(0, 2 * np.pi, nx)
 	y1d = np.linspace(0, 2 * np.pi, ny)
 	t, y, x = np.meshgrid(t1d, y1d, x1d, indexing='ij')
-	omega_daily = 2. * np.pi * 1. / (3600. * 24.)
+	omega_daily = 2. * np.pi * (3600. * 24.)
 	# Create four times modulation with
-	m1 = np.cos(omega_daily * t)
-	m2 = np.cos(3 * omega_daily * t)
-	m3 = np.cos(7 *omega_daily * t)
-	m4 = np.cos(11 * omega_daily * t)
+	m1 = np.cos(5 * omega_daily * t)
+	m2 = np.cos(9 * omega_daily * t)
+	m3 = np.cos(11 * omega_daily * t)
+	m4 = np.cos(19 * omega_daily * t)
 	# Create a spatio-temporal gaussian noise
 	noise = 0.8 * np.random.normal(0, 0.2, (nt, ny, nx))
 	# Create four spatial patterns
@@ -146,7 +146,8 @@ def example_xyt(boundaries=False):
 	z4 = np.sin(2.5 * x) * np.sin(2.5 * y) * m4
 	z = z1 + z2 + z3 + z4 + noise
 	if boundaries:
-		z[:, 0:ny/4, 0:nx/4] = np.nan
+		z[:, 0:ny//2, 0:nx//4] = np.nan
+		z[:, 0:nx//4, 0:nx//2] = np.nan
 	output = xr.DataArray(z, coords=[time, y1d, x1d], dims=['time', 'y', 'x'],
 	                      name='example_xyt')
 	return output.chunk({'time': 50, 'x': 70, 'y':70})
