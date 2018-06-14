@@ -43,7 +43,7 @@ def test_fft_real_2d():
 	spectrum_array, spectrum_coords, spectrum_dims = \
 		xfft._fft(chunked_array, nfft={'y': 14, 'z': 18}, dim=['y', 'z'],
 		          dx={'y': 0.01, 'z': 0.02}, sym=False)
-	assert np.array_equal(np.asarray(spectrum_array),
+	assert np.allclose(np.asarray(spectrum_array),
 	                      np.fft.rfftn(a, s=(18, 14), axes=(2, 1)))
 	assert np.array_equal(spectrum_coords['f_y'], np.fft.rfftfreq(14, d=0.01))
 	assert np.array_equal(spectrum_coords['f_z'], np.fft.fftfreq(18, d=0.02))
@@ -60,7 +60,7 @@ def test_fft_complex_2d():
 	spectrum_array, spectrum_coords, spectrum_dims = \
 		xfft._fft(chunked_array, nfft={'y': 6, 'z': 8}, dim=['y', 'z'],
 		          dx={'y': 0.01, 'z': 0.02})
-	assert np.array_equal(np.asarray(spectrum_array),
+	assert np.allclose(np.asarray(spectrum_array),
 	                      np.fft.fftn(a * b * c, s=(8, 6), axes=(2, 1)))
 	assert np.array_equal(spectrum_coords['f_y'], np.fft.fftfreq(6, d=0.01))
 	assert np.array_equal(spectrum_coords['f_z'], np.fft.fftfreq(8, d=0.02))
@@ -154,7 +154,7 @@ def test_parseval_real_2d():
 	chunked_array = dummy_array.chunk(chunks={'x': 2, 'y': 2, 'z': 2})
 	chunked_array_zeromean = chunked_array - chunked_array.mean(dim=['y', 'z'])
 	spec = xfft.fft(chunked_array_zeromean, dim=['y', 'z'])
-	assert np.array_equal(np.var(a, axis=(1, 2)),
+	assert np.allclose(np.var(a, axis=(1, 2)),
 	                      xfft.ps(spec).sum(dim=['f_y','f_z']))
 
 
@@ -167,5 +167,5 @@ def test_parserval_complex_2d():
 	chunked_array = dummy_array.chunk(chunks={'x': 2, 'y': 2, 'z': 2})
 	chunked_array_zeromean = chunked_array - chunked_array.mean(dim=['y', 'z'])
 	spec = xfft.fft(chunked_array_zeromean, dim=['y', 'z'], sym=True)
-	assert np.array_equal(np.var(a * b * c, axis=(1, 2)),
+	assert np.allclose(np.var(a * b * c, axis=(1, 2)),
 	                      xfft.ps(spec).sum(dim=['f_y','f_z']))
