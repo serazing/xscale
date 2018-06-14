@@ -281,6 +281,7 @@ class Window(object):
 		win_spectrum = psd(fft(win_array, nfft=1024, dim=self.dims,
 		                                  dx=self.dx, sym=True))
 		win_spectrum_norm = 20 * log10(win_spectrum / abs(win_spectrum).max())
+		self.win_spectrum_norm = win_spectrum_norm
 		if self.ndim == 1:
 			_plot1d_window(win_array, win_spectrum_norm)
 		elif self.ndim == 2:
@@ -295,8 +296,10 @@ def _plot1d_window(win_array, win_spectrum_norm):
 	dim = win_spectrum_norm.dims[0]
 	freq = win_spectrum_norm[dim]
 	min_freq = np.extract(freq > 0, freq).min()
-	cutoff_3db = 1. / abs(freq[np.argmin(np.abs(win_spectrum_norm + 3))])
-	cutoff_6db = 1. / abs(freq[np.argmin(np.abs(win_spectrum_norm + 6))])
+	# next, should eventually be udpated in order to delete call to .values
+	# https://github.com/pydata/xarray/issues/1388
+	cutoff_3db = 1. / abs(freq[np.abs(win_spectrum_norm + 3).argmin(dim).values])
+	cutoff_6db = 1. / abs(freq[np.abs(win_spectrum_norm + 6).argmin(dim).values])
 
 	# Plot window properties
 	fig, (ax1, ax2) = plt.subplots(nrows=1, ncols=2, figsize=(10, 5))
