@@ -45,7 +45,7 @@ def polyfit(array, deg=1, dim=None, coord=None):
 
 	if coord is None:
 		coord = array[dim]
-	if pd.core.common.is_datetime64_dtype(coord.data):
+	if pd.api.types.is_datetime64_dtype(coord.data):
 		# Use the 1e-9 to scale nanoseconds to seconds (by default, xarray use
 		# datetime in nanoseconds
 		t = coord.data.astype('f8') * 1e-9
@@ -208,7 +208,7 @@ def sinfit(array, periods, dim=None, coord=None, unit='s'):
 	# and normalize to use periods and time in seconds
 	if coord is None:
 		coord = array[dim]
-	if pd.core.common.is_datetime64_dtype(coord.data):
+	if _utils.is_datetime(coord):
 		# Use the 1e-9 to scale nanoseconds to seconds (by default, xarray use
 		# datetime in nanoseconds
 		t = coord.data.astype('f8') * 1e-9
@@ -274,7 +274,7 @@ def sinval(modes, coord):
 	new_shape = coord.shape + modes_shape
 	new_chunks = coord_chunks + modes_chunks
 	ones = xr.DataArray(da.ones(new_shape, chunks=new_chunks), dims=new_dims)
-	if pd.core.common.is_datetime64_dtype(coord):
+	if _utils.is_datetime(coord):
 		# TODO: Check if there is a smarter way to convert time to second
 		t = ones * coord.astype('f8') * 1e-9
 		pd_periods = pd.to_datetime(modes['periods'],

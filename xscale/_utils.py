@@ -26,6 +26,10 @@ def is_iterable(value):
 	return isinstance(value, Iterable) and not isinstance(value, str)
 
 
+def is_datetime(value):
+	return pd.api.types.is_datetime64_dtype(value)
+
+
 def homogeneous_type(seq):
     iseq = iter(seq)
     first_type = type(next(iseq))
@@ -170,7 +174,7 @@ def get_dx(obj, dim, unit='s'):
 		The resolution of the coordinates associated to the dimension
 	"""
 	x = np.asarray(obj[dim])
-	if pd.core.common.is_datetime64_dtype(x):
+	if is_datetime(x):
 		dx = pd.Series(x[1:]) - pd.Series(x[:-1])
 		dx /= np.timedelta64(1, unit)
 	else:

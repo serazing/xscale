@@ -8,7 +8,7 @@ DISTNAME = 'xscale'
 PACKAGES = ['xscale', 'xscale.filtering', 'xscale.signal', 'xscale.spectral']
 TESTS = [p + '.tests' for p in PACKAGES]
 INSTALL_REQUIRES = ['numpy >= 1.7', 'scipy >=  0.18.0', 'xarray >= 0.8.2',
-                    'dask >= 0.12.0', 'numba >=  0.30.0', ]
+                    'dask >= 0.12.0', 'numba >=  0.30.0', 'pandas >= 0.19.0']
 TESTS_REQUIRE = ['pytest >= 2.7.1']
 
 URL = 'http://github.com/serazing/xscale'

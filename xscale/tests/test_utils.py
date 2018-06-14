@@ -38,6 +38,9 @@ def test_is_iterable():
 	assert not _utils.is_iterable(10)
 	assert not _utils.is_iterable('john_doe')
 
+def test_is_datetime():
+	assert _utils.is_datetime(pd.date_range('1990', '2000'))
+	assert not _utils.is_datetime(np.linspace(0, 15))
 
 def test_homogeneous_type():
 	assert _utils.homogeneous_type((12, 54))
