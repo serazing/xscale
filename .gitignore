@@ -17,5 +17,8 @@ docs/savefig/*
 __pycache__/
 *.py[cod]
 
+*.ipynb_checkpoints
+*.pytest_cache
+
 *.nc
 xscale.egg-info/
