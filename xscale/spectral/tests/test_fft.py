@@ -121,7 +121,7 @@ def test_spectrum_1d(sym):
 	spectrum = xfft.fft(chunked_array, dim='time', dx=1.,
 	                    sym=sym)
 	assert spectrum.name == "F_misc"
-	array = xfft.ifft(spectrum, dim=('f_time',), n={'f_time': 5})
+	array = xfft.ifft(spectrum, n={'f_time': 5}, real=True)
 	assert np.allclose(array, dummy_array)
 
 @pytest.mark.parametrize("sym",  [True, False])
@@ -129,7 +129,9 @@ def test_spectrum_2d(sym):
 	a = np.mgrid[:5, :5, :5][0]
 	dummy_array = xr.DataArray(a, dims=['x', 'y', 'z'])
 	chunked_array = dummy_array.chunk(chunks={'x': 2, 'y': 2, 'z': 2})
-	xfft.fft(chunked_array, dim=['y', 'z'], sym=sym).load()
+	spectrum =  xfft.fft(chunked_array, dim=['y', 'z'], dx=1., sym=sym)
+	array = xfft.ifft(spectrum, n={'f_y': 5, 'f_z': 5}, real=True)
+	assert np.allclose(array, dummy_array)
 
 
 def test_parserval_real_1d():
@@ -185,7 +187,7 @@ def test_ifft_real_1d(sym, shift):
 	                          shift=shift)
 	array, array_coords, array_dims = \
 		xfft._ifft(dummy_spectrum, dim=('f_x',), n={'f_x': 9},
-		           shift=shift, real=sym)
+		           shift=shift, real=True)
 	assert np.allclose(array, dummy_array)
 
 @pytest.mark.parametrize("shift",  [False, True])

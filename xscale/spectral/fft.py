@@ -110,7 +110,7 @@ def psd(spectrum):
 def fft(array, dim=None, nfft=None, dx=None, detrend=None, tapering=False,
         shift=True, sym=False, chunks=None):
 	"""Compute the spectrum on several dimensions of xarray.DataArray objects
-	using the Fast Fourrier Transform parrallelized with dask.
+	using the Fast Fourrier Transform parallelized with dask.
 
 	Parameters
 	----------
@@ -184,9 +184,11 @@ def fft(array, dim=None, nfft=None, dx=None, detrend=None, tapering=False,
 
 
 def ifft(spectrum_array, dim=None, n=None, shift=True, real=False, chunks=None):
-	"""Compute the field associated with the spectrum on several dimensions of
+	"""Perform the inverse Fourier transformCompute the field associated with
+	the spectrum on
+	several dimensions of
 	xarray.DataArray objects
-	using the Fast Fourrier Transform parrallelized with dask.
+	using the Fast Fourrier Transform parallelized with dask.
 
 	Parameters
 	----------
@@ -219,6 +221,7 @@ def ifft(spectrum_array, dim=None, n=None, shift=True, real=False, chunks=None):
 	"""
 	_, new_dim = _utils.infer_n_and_dims(spectrum_array, n, dim)
 	new_n = _utils.infer_arg(n, new_dim, default_value=None)
+	print(new_dim, new_n)
 	array, coords, dims = _ifft(spectrum_array, new_dim, new_n, shift=shift,
 	                            real=real, chunks=chunks)
 	data = xr.DataArray(array, coords=coords, dims=dims)
@@ -282,7 +285,7 @@ def _ifft(spectrum_array, dim, n, shift=False, real=False, chunks=None):
 	array_coords = dict()
 	array_dims = tuple()
 	spectrum_dims = tuple()
-	first = True
+	real_di = None
 	for di in spectrum_array.dims:
 		if (di[:2] == 'f_') and (di in dim):
 			array_dims += (di[2:],)
@@ -295,27 +298,30 @@ def _ifft(spectrum_array, dim, n, shift=False, real=False, chunks=None):
 		axis_num = spectrum_array.get_axis_num(di)
 		axis_size = spectrum_array.sizes[di]
 		axis_coord = spectrum_array.coords[di]
-		if np.all(axis_coord >= 0) or (first and real):
+		if np.all(axis_coord >= 0):
 			# If there are only positive frequencies, the dimension is supposed
-			# to have been created by rfft, thus irfft is applied
-			# If the inverse rfft is forced using the real keywords only on the
-			# first dimension
-			if shift and real:
-				array = _ifftshift(array, axes=axis_num)
-			array = (da.fft.irfft(array.rechunk({axis_num: axis_size}),
-			                      n=n[di],
-			                      axis=axis_num).
-					 rechunk({axis_num: chunks[axis_num][0]}))
+			# to have been created by rfft, thus irfft is applied later
+			real_di = di
 		else:
 			# Other dimensions are supposed to have been created by fft,
 			# thus ifft is applied
 			if shift:
 				array = _ifftshift(array, axes=axis_num)
 			array = (da.fft.ifft(array.rechunk({axis_num: axis_size}),
-			                    n=n[di],
-			                    axis=axis_num).
+			                     n=n[di],
+			                     axis=axis_num).
 				    rechunk({axis_num: chunks[axis_num][0]}))
-			first = False
+	# irfft is applied here if there is a dimension with only positive
+	# frequencies
+	if real_di:
+		axis_num = spectrum_array.get_axis_num(real_di)
+		axis_size = spectrum_array.sizes[real_di]
+		array = (da.fft.irfft(array.rechunk({axis_num: axis_size}),
+	                          n=n[di],
+	                          axis=axis_num).
+	            rechunk({axis_num: chunks[axis_num][0]}))
+	if real:
+		array = array.real
 	return array, array_coords, array_dims
 
 
