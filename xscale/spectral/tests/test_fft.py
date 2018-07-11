@@ -113,20 +113,23 @@ def test_fft_warning():
 		xfft.fft(chunked_array, dim=['x', 'y', 'time'])
 
 
-@pytest.mark.parametrize("tapering",  [True, False])
-def test_spectrum_1d(tapering):
+@pytest.mark.parametrize("sym",  [True, False])
+def test_spectrum_1d(sym):
 	a = np.mgrid[:5, :5, :5][0]
-	dummy_array = xr.DataArray(a, dims=['time', 'y', 'z'])
+	dummy_array = xr.DataArray(a, dims=['time', 'y', 'z'], name="misc")
 	chunked_array = dummy_array.chunk(chunks={'time': 2, 'y': 2, 'z': 2})
-	xfft.fft(chunked_array, dim='time', dx=1., tapering=tapering).load()
+	spectrum = xfft.fft(chunked_array, dim='time', dx=1.,
+	                    sym=sym)
+	assert spectrum.name == "F_misc"
+	array = xfft.ifft(spectrum, dim=('f_time',), n={'f_time': 5})
+	assert np.allclose(array, dummy_array)
 
-
-@pytest.mark.parametrize("tapering",  [True, False])
-def test_spectrum_2d(tapering):
+@pytest.mark.parametrize("sym",  [True, False])
+def test_spectrum_2d(sym):
 	a = np.mgrid[:5, :5, :5][0]
 	dummy_array = xr.DataArray(a, dims=['x', 'y', 'z'])
 	chunked_array = dummy_array.chunk(chunks={'x': 2, 'y': 2, 'z': 2})
-	xfft.fft(chunked_array, dim=['y', 'z'], tapering=tapering).load()
+	xfft.fft(chunked_array, dim=['y', 'z'], sym=sym).load()
 
 
 def test_parserval_real_1d():
@@ -169,3 +172,30 @@ def test_parserval_complex_2d():
 	spec = xfft.fft(chunked_array_zeromean, dim=['y', 'z'], sym=True)
 	assert np.allclose(np.var(a * b * c, axis=(1, 2)),
 	                      xfft.ps(spec).sum(dim=['f_y','f_z']))
+
+@pytest.mark.parametrize("sym",  [False, True])
+@pytest.mark.parametrize("shift",  [False, True])
+def test_ifft_real_1d(sym, shift):
+	""" Compare the result from the spectrum._fft function to numpy.fft.rfft
+	"""
+	a = [0, 1, 0, 0, -1, 0, 1, 0, 0]
+	dummy_array = xr.DataArray(a, dims=['x'])
+	chunked_array = dummy_array.chunk(chunks={'x': 2})
+	dummy_spectrum = xfft.fft(chunked_array, dim='x', dx=1., sym=sym,
+	                          shift=shift)
+	array, array_coords, array_dims = \
+		xfft._ifft(dummy_spectrum, dim=('f_x',), n={'f_x': 9},
+		           shift=shift, real=sym)
+	assert np.allclose(array, dummy_array)
+
+@pytest.mark.parametrize("shift",  [False, True])
+def test_ifft_complex_1d(shift):
+	""" Compare the result from the spectrum._fft function to numpy.fft.rfft
+	"""
+	a = np.array([0, 1, 0, 0, -1, 0, 1, 0, 0]) + 0.5j
+	dummy_array = xr.DataArray(a, dims=['x'])
+	chunked_array = dummy_array.chunk(chunks={'x': 2})
+	dummy_spectrum = xfft.fft(chunked_array, dim='x', dx=1., shift=shift)
+	array, array_coords, array_dims = \
+		xfft._ifft(dummy_spectrum, dim=('f_x',), shift=shift, n={'f_x': 9})
+	assert np.allclose(array, dummy_array)

@@ -107,7 +107,7 @@ def psd(spectrum):
 	return power_spectrum_density
 
 
-def fft(array, nfft=None, dim=None, dx=None, detrend=None, tapering=False,
+def fft(array, dim=None, nfft=None, dx=None, detrend=None, tapering=False,
         shift=True, sym=False, chunks=None):
 	"""Compute the spectrum on several dimensions of xarray.DataArray objects
 	using the Fast Fourrier Transform parrallelized with dask.
@@ -118,6 +118,8 @@ def fft(array, nfft=None, dim=None, dx=None, detrend=None, tapering=False,
 		Array from which compute the spectrum
 	dim : str or sequence
 		Dimensions along which to compute the spectrum
+	nfft : float or sequence, optional
+		Number of points used to compute the spectrum
 	dx : float or sequence, optional
 		Define the resolution of the dimensions. If not precised,
 		the resolution is computed directly from the coordinates associated
@@ -169,15 +171,61 @@ def fft(array, nfft=None, dim=None, dx=None, detrend=None, tapering=False,
 	if np.any(np.iscomplex(array)):
 		sym = True
 	spectrum_array, spectrum_coords, spectrum_dims = \
-		_fft(preproc_array, new_nfft, new_dim, new_dx, shift=shift,
+		_fft(preproc_array, new_dim, new_nfft, new_dx, shift=shift,
 		     chunks=chunks, sym=sym)
+	if not array.name:
+		name = 'spectrum'
+	else:
+		name = 'F_' + array.name
 	spec = xr.DataArray(spectrum_array, coords=spectrum_coords,
-	                    dims=spectrum_dims, name='spectrum')
+	                    dims=spectrum_dims, name=name)
 	_compute_norm_factor(spec, new_nfft, new_dim, new_dx, tapering, sym=sym)
 	return spec
 
 
-def _fft(array, nfft, dim, dx, shift=False, chunks=None, sym=True):
+def ifft(spectrum_array, dim=None, n=None, shift=True, real=False, chunks=None):
+	"""Compute the field associated with the spectrum on several dimensions of
+	xarray.DataArray objects
+	using the Fast Fourrier Transform parrallelized with dask.
+
+	Parameters
+	----------
+	spectrum_array : xarray.DataArray
+		Spectral array with
+	dim : str or sequence
+		Name of the original dimensions used to compute
+	n : float or sequence, optional
+	shift : bool, optional
+		If True, the input spectrum have the frequency axes center
+		the 0 frequency.
+	real : bool, optional
+		If True, the inverse Fourier transform is forced to return a real
+		output by applying np.fft.irfft to the first dimension
+	chunks : int, tuple or dict, optional
+		Chunk sizes along each dimension, e.g., ``5``, ``(5, 5)`` or
+		``{'x': 5, 'y': 5}``
+
+	Returns
+	-------
+	res : DataArray
+		A multi-dimensional complex DataArray with the corresponding
+		dimensions transformed in the Fourier space.
+
+	Notes
+	-----
+	If the input data is real, a real fft is performed over the first
+	dimension, which is faster. Then the transform over the remaining
+	dimensions are computed with the classic fft.
+	"""
+	_, new_dim = _utils.infer_n_and_dims(spectrum_array, n, dim)
+	new_n = _utils.infer_arg(n, new_dim, default_value=None)
+	array, coords, dims = _ifft(spectrum_array, new_dim, new_n, shift=shift,
+	                            real=real, chunks=chunks)
+	data = xr.DataArray(array, coords=coords, dims=dims)
+	return data
+
+
+def _fft(array, dim, nfft, dx, shift=False, sym=True, chunks=None):
 	"""This function is for private use only.
 	"""
 	spectrum_array = array.chunk(chunks=chunks).data
@@ -194,6 +242,7 @@ def _fft(array, nfft, dim, dx, shift=False, chunks=None, sym=True):
 	for di in dim:
 		if di in array.dims:
 			axis_num = array.get_axis_num(di)
+			axis_size = array.sizes[di]
 			# Compute the resolution of the different dimension
 			if dx[di] is None:
 				dx[di] = _utils.get_dx(array, di)
@@ -203,7 +252,7 @@ def _fft(array, nfft, dim, dx, shift=False, chunks=None, sym=True):
 				# is faster
 				spectrum_coords['f_' + di] = np.fft.rfftfreq(nfft[di], dx[di])
 				spectrum_array = \
-					(da.fft.rfft(spectrum_array.rechunk({axis_num: nfft[di]}),
+					(da.fft.rfft(spectrum_array.rechunk({axis_num: axis_size}),
 					             n=nfft[di],
 					             axis=axis_num).
 					 rechunk({axis_num: chunks[axis_num][0]}))
@@ -212,11 +261,11 @@ def _fft(array, nfft, dim, dx, shift=False, chunks=None, sym=True):
 				# use classic fft
 				spectrum_coords['f_' + di] = np.fft.fftfreq(nfft[di], dx[di])
 				spectrum_array = \
-					(da.fft.fft(spectrum_array.rechunk({axis_num: nfft[di]}),
+					(da.fft.fft(spectrum_array.rechunk({axis_num: axis_size}),
 					            n=nfft[di],
 					            axis=axis_num).
 				    rechunk({axis_num: chunks[axis_num][0]}))
-				if shift is True:
+				if shift:
 					spectrum_coords['f_' + di] = \
 						np.fft.fftshift(spectrum_coords['f_' + di])
 					spectrum_array = _fftshift(spectrum_array, axes=axis_num)
@@ -224,6 +273,50 @@ def _fft(array, nfft, dim, dx, shift=False, chunks=None, sym=True):
 		else:
 			warnings.warn("Cannot find dimension %s in DataArray" % di)
 	return spectrum_array, spectrum_coords, spectrum_dims
+
+
+def _ifft(spectrum_array, dim, n, shift=False, real=False, chunks=None):
+	"""This function is for private use only.
+	"""
+	array = spectrum_array.chunk(chunks=chunks).data
+	array_coords = dict()
+	array_dims = tuple()
+	spectrum_dims = tuple()
+	first = True
+	for di in spectrum_array.dims:
+		if (di[:2] == 'f_') and (di in dim):
+			array_dims += (di[2:],)
+			spectrum_dims += (di, )
+		else:
+			array_dims += (di,)
+			array_coords[di] = np.asarray(spectrum_array[di])
+	chunks = copy.copy(array.chunks)
+	for di in spectrum_dims:
+		axis_num = spectrum_array.get_axis_num(di)
+		axis_size = spectrum_array.sizes[di]
+		axis_coord = spectrum_array.coords[di]
+		if np.all(axis_coord >= 0) or (first and real):
+			# If there are only positive frequencies, the dimension is supposed
+			# to have been created by rfft, thus irfft is applied
+			# If the inverse rfft is forced using the real keywords only on the
+			# first dimension
+			if shift and real:
+				array = _ifftshift(array, axes=axis_num)
+			array = (da.fft.irfft(array.rechunk({axis_num: axis_size}),
+			                      n=n[di],
+			                      axis=axis_num).
+					 rechunk({axis_num: chunks[axis_num][0]}))
+		else:
+			# Other dimensions are supposed to have been created by fft,
+			# thus ifft is applied
+			if shift:
+				array = _ifftshift(array, axes=axis_num)
+			array = (da.fft.ifft(array.rechunk({axis_num: axis_size}),
+			                    n=n[di],
+			                    axis=axis_num).
+				    rechunk({axis_num: chunks[axis_num][0]}))
+			first = False
+	return array, array_coords, array_dims
 
 
 def _detrend(array, dim):
