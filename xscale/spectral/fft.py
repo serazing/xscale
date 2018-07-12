@@ -206,6 +206,7 @@ def ifft(spectrum_array, dim=None, n=None, shift=True, real=True, chunks=None):
 	chunks : int, tuple or dict, optional
 		Chunk sizes along each dimension, e.g., ``5``, ``(5, 5)`` or
 		``{'x': 5, 'y': 5}``
+		``{'x': 5, 'y': 5}``
 
 	Returns
 	-------
@@ -221,7 +222,6 @@ def ifft(spectrum_array, dim=None, n=None, shift=True, real=True, chunks=None):
 	"""
 	_, new_dim = _utils.infer_n_and_dims(spectrum_array, n, dim)
 	new_n = _utils.infer_arg(n, new_dim, default_value=None)
-	print(new_dim, new_n)
 	array, coords, dims = _ifft(spectrum_array, new_dim, new_n, shift=shift,
 	                            real=real, chunks=chunks)
 	data = xr.DataArray(array, coords=coords, dims=dims)
