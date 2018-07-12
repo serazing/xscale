@@ -183,7 +183,7 @@ def fft(array, dim=None, nfft=None, dx=None, detrend=None, tapering=False,
 	return spec
 
 
-def ifft(spectrum_array, dim=None, n=None, shift=True, real=False, chunks=None):
+def ifft(spectrum_array, dim=None, n=None, shift=True, real=True, chunks=None):
 	"""Perform the inverse Fourier transformCompute the field associated with
 	the spectrum on
 	several dimensions of
