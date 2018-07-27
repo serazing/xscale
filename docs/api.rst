@@ -30,6 +30,7 @@ Fast Fourier Transform
    :toctree: generated/
 
       spectral.fft.fft
+      spectral.fft.ifft
       spectral.fft.amplitude
       spectral.fft.phase
       spectral.fft.ps

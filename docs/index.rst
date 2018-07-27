@@ -30,6 +30,7 @@ Index
 **Getting Started**
 
 * :doc:`install`
+* :doc:`examples`
 
 .. toctree::
    :maxdepth: 1
@@ -37,7 +38,7 @@ Index
    :caption: Getting Started
 
    install.rst
-
+   examples.rst
 
 **Filtering**
 

@@ -76,7 +76,7 @@ for every grid point.
 
    import xscale.spectral.fft as xfft
    foo_time_spectrum = xfft.fft(foo, dim='time', dx=1., detrend='mean',
-   tapering=True)
+   tapering=False)
    foo_time_spectrum
 
 

@@ -15,6 +15,7 @@ dependencies:
   - graphviz
   - sphinx
   - sphinx_rtd_theme
+  - nbsphinx
   - numpydoc
   - pip
   - pip:
