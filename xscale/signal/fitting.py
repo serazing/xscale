@@ -300,7 +300,7 @@ def _order_and_stack(obj, dim):
 	Private function used to reorder to use the work dimension as the first
 	dimension, stack all the dimensions except the first one
 	"""
-	dims_stacked = [di for di in obj.dims if di is not dim]
+	dims_stacked = [di for di in obj.dims if di != dim]
 	new_dims = [dim, ] + dims_stacked
 	if obj.ndim > 2:
 		obj_stacked = obj.transpose(*new_dims).stack(temp_dim=dims_stacked)
