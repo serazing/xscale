@@ -36,8 +36,8 @@ ctime = pd.date_range('2000-01-01', periods=48, freq='M')
 cy = np.linspace(0.01, 0.5, 30)
 cx = np.pi * np.linspace(0, 2, 40)
 coords = {'time': ctime, 'y': cy, 'x': cx}
-dummy_array = xr.DataArray(np.random.random(shape), dims=dims, coords=coords)
-
+dummy_array = xr.DataArray(np.random.random(shape), dims=dims, 
+						   coords=coords, name='test')
 
 def test_set_nyquist():
 	w = dummy_array.window
@@ -63,7 +63,17 @@ def test_wrong_dimension():
 	with pytest.warns(UserWarning, message="Expecting a message to warns that"
 	                                       "the user used a wrong dimension"):
 		w.set(dim=['z'])
-
+		
+		
+@pytest.mark.parametrize("window",  window_list)
+def test_convolve(window):
+	win2d_datarray = sig_xyt.window
+	win2d_datarray.set(window=window, cutoff=20, dim=['y', 'x'], n=[24, 36])
+	win2d_datarray.convolve().compute()
+	win2d_dataset = sig_xyt.to_dataset(name='test')
+	win2d_dataset.set(window=window, cutoff=20, dim=['y', 'x'], n=[24, 36])
+	win2d_dataset.convolve().compute()
+			
 
 @pytest.mark.parametrize("window",  window_list)
 def test_compute_boundary_weights(window):
@@ -71,11 +81,8 @@ def test_compute_boundary_weights(window):
 	win2d.set(window=window, cutoff=20, dim=['y', 'x'], n=[24, 36])
 	win2d.boundary_weights(drop_dims=['time'])
 
-@pytest.mark.parametrize("window",  window_list)
-def test_compute_boundary_weights(window):
-	win2d = sig_xyt.window
-	win2d.set(window=window, cutoff=20, dim=['y', 'x'], n=[24, 36])
-	win2d.convolve()
+	
+
 
 
 #TODO: how can we test plot using Travis CI without having a core dump issue
