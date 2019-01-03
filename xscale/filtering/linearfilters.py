@@ -10,11 +10,7 @@ from collections import Iterable
 import numpy as np
 import scipy.signal as sig
 import scipy.ndimage as im
-# Xarray and dask
-from dask.diagnostics import ProgressBar
-import dask.array as da
 import xarray as xr
-from xarray.ufuncs import log10
 # Matplotlib
 import matplotlib
 import matplotlib.pyplot as plt
@@ -176,8 +172,7 @@ class Window(object):
 									   mode, weights, trim))
 		return res
 
-	def boundary_weights(self, mode='reflect', mask=None, drop_dims=[],
-	                     compute=False):
+	def boundary_weights(self, mode='reflect', mask=None, drop_dims=[], trim=False):
 		"""
 		Compute the boundary weights
 
@@ -191,49 +186,32 @@ class Window(object):
 		drop_dims : list, optional
 			Specify dimensions along which the weights do not need to be
 			computed
-		compute : bool, optional
-			If True, the computation is performed after the dask graph has
-			been made. If False, only the dask graph is made is the computation
-			will be performed later on.
 
 		Returns
 		-------
-		weights : xarray.DataArray
-			Return a DataArray containing the weights
+		weights : xarray.DataArray or xarray.Dataset
+			Return a DataArray or a Dataset containing the weights
 		"""
-		if mode is 'periodic':
-			mode_conv = 'wrap'
-		else:
-			mode_conv = mode
-		# Normalize coefficients
-		coeffs = self.coefficients / self.coefficients.sum()
+		# Drop extra dimensions if
 		if drop_dims:
-			#new_coeffs = da.squeeze(coeffs, axis=[self.obj.get_axis_num(di)
-		        #                                  for di in drop_dims])
-			new_coeffs = coeffs.squeeze()
+			new_coeffs = self.coefficients.squeeze()
 		else:
-			new_coeffs = coeffs
-		new_obj = self.obj.isel(**{di: 0 for di in drop_dims}).squeeze()
-		#depth = {new_obj.get_axis_num(di): self.order[di] // 2
-		#         for di in self.dims}
-		boundary = {self._obj.get_axis_num(di): mode for di in self.dims}
+			new_coeffs = self.coefficients
 		if mask is None:
-			mask = da.notnull(new_obj.data)
-		conv = lambda x: im.convolve(x, new_coeffs, mode=mode_conv)
-		weights = mask.astype(float).map_overlap(conv, depth=self._depth,
-		                                               boundary=boundary,
-		                                               trim=True)
-
-		res = xr.DataArray(mask * weights, dims=new_obj.dims,
-		                                   coords=new_obj.coords,
-		                                   name='boundary_weights')
-		res = res.where(res != 0)
-		if compute:
-			with ProgressBar():
-				out = res.compute()
-		else:
-			out = res
-		return out
+			# Select only the first
+			new_obj = self.obj.isel(**{di: 0 for di in drop_dims}).squeeze()
+			mask = 1. - np.isnan(new_obj)
+		mask = mask.astype(float)
+		if isinstance(mask, xr.DataArray):
+			res = _convolve(mask, new_coeffs, self.dims, self.order,
+							mode, 1., trim)
+		elif isinstance(mask, xr.Dataset):
+			res = mask.apply(_convolve, keep_attrs=True,
+								        args=(self.coefficients, self.dims, self.order,
+									          mode, 1., trim))
+		# Mask the output
+		res = res.where(mask == 1.)
+		return res
 
 	def tapper(self, overlap=0.):
 		"""
@@ -266,7 +244,7 @@ class Window(object):
 		                         dims=self.dims).squeeze()
 		win_spectrum = psd(fft(win_array, nfft=1024, dim=self.dims,
 		                                  dx=self.dx, sym=True))
-		win_spectrum_norm = 20 * log10(win_spectrum / abs(win_spectrum).max())
+		win_spectrum_norm = 20 * np.log10(win_spectrum / abs(win_spectrum).max())
 		self.win_spectrum_norm = win_spectrum_norm
 		if self.ndim == 1:
 			_plot1d_window(win_array, win_spectrum_norm)
@@ -284,8 +262,9 @@ def _plot1d_window(win_array, win_spectrum_norm):
 	min_freq = np.extract(freq > 0, freq).min()
 	# next, should eventually be udpated in order to delete call to .values
 	# https://github.com/pydata/xarray/issues/1388
-	cutoff_3db = 1. / abs(freq[np.abs(win_spectrum_norm + 3).argmin(dim).values])
-	cutoff_6db = 1. / abs(freq[np.abs(win_spectrum_norm + 6).argmin(dim).values])
+	# Changed by using load()
+	cutoff_3db = 1. / abs(freq[np.abs(win_spectrum_norm + 3).argmin(dim).data])
+	cutoff_6db = 1. / abs(freq[np.abs(win_spectrum_norm + 6).argmin(dim).data])
 
 	# Plot window properties
 	fig, (ax1, ax2) = plt.subplots(nrows=1, ncols=2, figsize=(10, 5))
@@ -314,6 +293,7 @@ def _plot1d_window(win_array, win_spectrum_norm):
 
 def _plot2d_window(win_array, win_spectrum_norm):
 
+	fig = plt.figure(figsize=(18, 9))
 	n_x, n_y = win_array.shape
 	n_fx, n_fy = win_spectrum_norm.shape
 	dim_fx, dim_fy = win_spectrum_norm.dims
@@ -326,12 +306,12 @@ def _plot2d_window(win_array, win_spectrum_norm):
 	min_freq_x = np.extract(freq_x > 0, freq_x).min()
 	min_freq_y = np.extract(freq_y > 0, freq_y).min()
 
-	cutoff_x_3db = 1. / abs(freq_x[np.argmin(np.abs(win_spectrum_x + 3))])
-	cutoff_x_6db = 1. / abs(freq_x[np.argmin(np.abs(win_spectrum_x + 6))])
-	cutoff_y_3db = 1. / abs(freq_y[np.argmin(np.abs(win_spectrum_y + 3))])
-	cutoff_y_6db = 1. / abs(freq_y[np.argmin(np.abs(win_spectrum_y + 6))])
+	cutoff_x_3db = 1. / abs(freq_x[np.abs(win_spectrum_x + 3).argmin(dim_fx).data])
+	cutoff_x_6db = 1. / abs(freq_x[np.abs(win_spectrum_x + 6).argmin(dim_fx).data])
+	cutoff_y_3db = 1. / abs(freq_y[np.abs(win_spectrum_y + 3).argmin(dim_fy).data])
+	cutoff_y_6db = 1. / abs(freq_y[np.abs(win_spectrum_y + 6).argmin(dim_fy).data])
 
-	fig = plt.figure(1, figsize=(16, 8))
+	#fig = plt.figure(1, figsize=(16, 8))
 	# Definitions for the axes
 	left, width = 0.05, 0.25
 	bottom, height = 0.05, 0.5
