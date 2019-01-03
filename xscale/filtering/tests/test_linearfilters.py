@@ -70,7 +70,7 @@ def test_convolve(window):
 	win2d_datarray = sig_xyt.window
 	win2d_datarray.set(window=window, cutoff=20, dim=['y', 'x'], n=[24, 36])
 	win2d_datarray.convolve().compute()
-	win2d_dataset = sig_xyt.to_dataset(name='test')
+	win2d_dataset = sig_xyt.to_dataset(name='test').window
 	win2d_dataset.set(window=window, cutoff=20, dim=['y', 'x'], n=[24, 36])
 	win2d_dataset.convolve().compute()
 			

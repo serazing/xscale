@@ -208,8 +208,9 @@ class Window(object):
 		# Normalize coefficients
 		coeffs = self.coefficients / self.coefficients.sum()
 		if drop_dims:
-			new_coeffs = da.squeeze(coeffs, axis=[self.obj.get_axis_num(di)
-		                                          for di in drop_dims])
+			#new_coeffs = da.squeeze(coeffs, axis=[self.obj.get_axis_num(di)
+		        #                                  for di in drop_dims])
+			new_coeffs = coeffs.squeeze()
 		else:
 			new_coeffs = coeffs
 		new_obj = self.obj.isel(**{di: 0 for di in drop_dims}).squeeze()
