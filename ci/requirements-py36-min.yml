@@ -1,6 +1,6 @@
 name: test_env
 dependencies:
-  - python=3.7
+  - python=3.6
   - numpy==1.11.0
   - scipy==0.18.0
   - pandas==0.19.0
