@@ -201,7 +201,6 @@ class Window(object):
 			# Select only the first
 			new_obj = self.obj.isel(**{di: 0 for di in drop_dims}).squeeze()
 			mask = 1. - np.isnan(new_obj)
-		mask = mask.astype(float)
 		if isinstance(mask, xr.DataArray):
 			res = _convolve(mask, new_coeffs, self.dims, self.order,
 							mode, 1., trim)
