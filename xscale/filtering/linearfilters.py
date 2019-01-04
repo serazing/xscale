@@ -10,11 +10,7 @@ from collections import Iterable
 import numpy as np
 import scipy.signal as sig
 import scipy.ndimage as im
-# Xarray and dask
-from dask.diagnostics import ProgressBar
-import dask.array as da
 import xarray as xr
-from xarray.ufuncs import log10
 # Matplotlib
 import matplotlib
 import matplotlib.pyplot as plt
@@ -26,6 +22,7 @@ from ..spectral.fft import fft, psd
 import pdb
 
 @xr.register_dataarray_accessor('window')
+@xr.register_dataset_accessor('window')
 class Window(object):
 	"""
 	Class for all different type of windows
@@ -101,15 +98,18 @@ class Window(object):
 
 		# Reset attributes
 		self.fnyq = dict()
-		self.coefficients = 1.
-		self._depth = dict()
+		self.coefficients = xr.DataArray(1.)
+		#/!\ Modif for Dataset
+		#self._depth = dict()
 
 		# Build the multi-dimensional window: the hard part
 		for di in self.obj.dims:
-			axis_num = self.obj.get_axis_num(di)
-			axis_chunk = self.obj.chunks[axis_num][0]
+			#/!\ Modif for Dataset
+			#axis_num = self.obj.get_axis_num(di)
+			#dim_chunk = self.obj.chunks[di][0]
 			if di in self.dims:
-				self._depth[axis_num] = self.order[di] // 2
+				#/!\ Modif for Dataset
+				#self._depth[axis_num] = self.order[di] // 2
 				if self.dx[di] is None:
 					self.dx[di] = _utils.get_dx(self.obj, di)
 				self.fnyq[di] = 1. / (2. * self.dx[di])
@@ -124,22 +124,26 @@ class Window(object):
 					                            1. / self.cutoff[di],
 					                            window=self.window[di],
 					                            nyq=self.fnyq[di])
-				coefficients1d_dask = da.from_array(coefficients1d,
-				                                    chunks=axis_chunk)
-				# Normalize the coefficients
-				#self.coefficients = np.outer(self.coefficients, coefficients1d)
-				self.coefficients = (np.expand_dims(self.coefficients, axis=-1)
-				                     * coefficients1d_dask)
+				try:
+					chunks = self.obj.chunks[di][0]
+				except TypeError:
+					axis_num = self.obj.get_axis_num(di)
+					chunks = self.obj.chunks[axis_num][0]
+				n = len(coefficients1d)
+				coords =  {di: np.arange(-(n - 1) // 2, (n + 1) // 2)}
+				coeffs1d = xr.DataArray(coefficients1d, dims=di, 
+										coords=coords).chunk(chunks=chunks) 
+				self.coefficients = self.coefficients * coeffs1d
 				# TODO: Try to add the rotational convention using meshgrid,
 				# in complement to the outer product
-				# TODO: check the order of dimension of the kernel compared to
-				# the DataArray/DataSet objects
 				#self.coefficients = self.coefficients.squeeze()
 			else:
-				self.coefficients = np.expand_dims(self.coefficients,
-				                                   axis=axis_num)
+				self.coefficients = self.coefficients.expand_dims(di, axis=-1)
+			#	self.coefficients = self.coefficients.expand_dim(di, axis=-1)
+			#	np.expand_dims(self.coefficients,
+			#	                                   axis=axis_num)
 
-	def convolve(self, mode='reflect', weights=1., trim=False, compute=False):
+	def convolve(self, mode='reflect', weights=1., trim=False):
 		"""Convolve the current window with the data
 
 		Parameters
@@ -153,46 +157,22 @@ class Window(object):
 		trim : bool, optional
 			If True, choose to only keep the valid data not affected by the
 			boundaries.
-		compute : bool, optional
-			If True, the computation is performed after the dask graph has
-			been made. If False, only the dask graph is made is the computation
-			will be performed later on.
 
 		Returns
 		-------
 		res : xarray.DataArray
 			Return a filtered DataArray
 		"""
-		# Check if the data has more dimensions than the window and add
-		# extra-dimensions to the window if it is the case
-		coeffs = self.coefficients / self.coefficients.sum()
-		if trim:
-			mode = np.nan
-			mode_conv = 'constant'
-			new_data = self.obj.data
-		else:
-			new_data = self.obj.fillna(0.).data
-			if mode is 'periodic':
-				mode_conv = 'wrap'
-			else:
-				mode_conv = mode
-		boundary = {self._obj.get_axis_num(di): mode for di in self.dims}
-		conv = lambda x: im.convolve(x, coeffs, mode=mode_conv)
-		data_conv = new_data.map_overlap(conv, depth=self._depth,
-		                                       boundary=boundary,
-		                                       trim=True)
-		res = 1. / weights *  xr.DataArray(data_conv, dims=self.obj.dims,
-		                                              coords=self.obj.coords,
-		                                              name=self.obj.name)
-		if compute:
-			with ProgressBar():
-				out = res.compute()
-		else:
-			out = res
-		return out
+		if isinstance(self.obj, xr.DataArray):
+			res = _convolve(self.obj, self.coefficients, self.dims, self.order, 
+							mode, weights, trim)
+		elif isinstance(self.obj, xr.Dataset):
+			res = self.obj.apply(_convolve, keep_attrs=True,
+								 args=(self.coefficients, self.dims, self.order, 
+									   mode, weights, trim))
+		return res
 
-	def boundary_weights(self, mode='reflect', mask=None, drop_dims=[],
-	                     compute=False):
+	def boundary_weights(self, mode='reflect', mask=None, drop_dims=[], trim=False):
 		"""
 		Compute the boundary weights
 
@@ -206,48 +186,31 @@ class Window(object):
 		drop_dims : list, optional
 			Specify dimensions along which the weights do not need to be
 			computed
-		compute : bool, optional
-			If True, the computation is performed after the dask graph has
-			been made. If False, only the dask graph is made is the computation
-			will be performed later on.
 
 		Returns
 		-------
-		weights : xarray.DataArray
-			Return a DataArray containing the weights
+		weights : xarray.DataArray or xarray.Dataset
+			Return a DataArray or a Dataset containing the weights
 		"""
-		if mode is 'periodic':
-			mode_conv = 'wrap'
-		else:
-			mode_conv = mode
-		# Normalize coefficients
-		coeffs = self.coefficients / self.coefficients.sum()
+		# Drop extra dimensions if
 		if drop_dims:
-			new_coeffs = da.squeeze(coeffs, axis=[self.obj.get_axis_num(di)
-		                                          for di in drop_dims])
+			new_coeffs = self.coefficients.squeeze()
 		else:
-			new_coeffs = coeffs
-		new_obj = self.obj.isel(**{di: 0 for di in drop_dims}).squeeze()
-		#depth = {new_obj.get_axis_num(di): self.order[di] // 2
-		#         for di in self.dims}
-		boundary = {self._obj.get_axis_num(di): mode for di in self.dims}
+			new_coeffs = self.coefficients
 		if mask is None:
-			mask = da.notnull(new_obj.data)
-		conv = lambda x: im.convolve(x, new_coeffs, mode=mode_conv)
-		weights = mask.astype(float).map_overlap(conv, depth=self._depth,
-		                                               boundary=boundary,
-		                                               trim=True)
-
-		res = xr.DataArray(mask * weights, dims=new_obj.dims,
-		                                   coords=new_obj.coords,
-		                                   name='boundary_weights')
-		res = res.where(res != 0)
-		if compute:
-			with ProgressBar():
-				out = res.compute()
-		else:
-			out = res
-		return out
+			# Select only the first
+			new_obj = self.obj.isel(**{di: 0 for di in drop_dims}).squeeze()
+			mask = 1. - np.isnan(new_obj)
+		if isinstance(mask, xr.DataArray):
+			res = _convolve(mask, new_coeffs, self.dims, self.order,
+							mode, 1., trim)
+		elif isinstance(mask, xr.Dataset):
+			res = mask.apply(_convolve, keep_attrs=True,
+								        args=(self.coefficients, self.dims, self.order,
+									          mode, 1., trim))
+		# Mask the output
+		res = res.where(mask == 1.)
+		return res
 
 	def tapper(self, overlap=0.):
 		"""
@@ -280,7 +243,7 @@ class Window(object):
 		                         dims=self.dims).squeeze()
 		win_spectrum = psd(fft(win_array, nfft=1024, dim=self.dims,
 		                                  dx=self.dx, sym=True))
-		win_spectrum_norm = 20 * log10(win_spectrum / abs(win_spectrum).max())
+		win_spectrum_norm = 20 * np.log10(win_spectrum / abs(win_spectrum).max())
 		self.win_spectrum_norm = win_spectrum_norm
 		if self.ndim == 1:
 			_plot1d_window(win_array, win_spectrum_norm)
@@ -298,8 +261,9 @@ def _plot1d_window(win_array, win_spectrum_norm):
 	min_freq = np.extract(freq > 0, freq).min()
 	# next, should eventually be udpated in order to delete call to .values
 	# https://github.com/pydata/xarray/issues/1388
-	cutoff_3db = 1. / abs(freq[np.abs(win_spectrum_norm + 3).argmin(dim).values])
-	cutoff_6db = 1. / abs(freq[np.abs(win_spectrum_norm + 6).argmin(dim).values])
+	# Changed by using load()
+	cutoff_3db = 1. / abs(freq[np.abs(win_spectrum_norm + 3).argmin(dim).data])
+	cutoff_6db = 1. / abs(freq[np.abs(win_spectrum_norm + 6).argmin(dim).data])
 
 	# Plot window properties
 	fig, (ax1, ax2) = plt.subplots(nrows=1, ncols=2, figsize=(10, 5))
@@ -328,6 +292,7 @@ def _plot1d_window(win_array, win_spectrum_norm):
 
 def _plot2d_window(win_array, win_spectrum_norm):
 
+	fig = plt.figure(figsize=(18, 9))
 	n_x, n_y = win_array.shape
 	n_fx, n_fy = win_spectrum_norm.shape
 	dim_fx, dim_fy = win_spectrum_norm.dims
@@ -340,12 +305,12 @@ def _plot2d_window(win_array, win_spectrum_norm):
 	min_freq_x = np.extract(freq_x > 0, freq_x).min()
 	min_freq_y = np.extract(freq_y > 0, freq_y).min()
 
-	cutoff_x_3db = 1. / abs(freq_x[np.argmin(np.abs(win_spectrum_x + 3))])
-	cutoff_x_6db = 1. / abs(freq_x[np.argmin(np.abs(win_spectrum_x + 6))])
-	cutoff_y_3db = 1. / abs(freq_y[np.argmin(np.abs(win_spectrum_y + 3))])
-	cutoff_y_6db = 1. / abs(freq_y[np.argmin(np.abs(win_spectrum_y + 6))])
+	cutoff_x_3db = 1. / abs(freq_x[np.abs(win_spectrum_x + 3).argmin(dim_fx).data])
+	cutoff_x_6db = 1. / abs(freq_x[np.abs(win_spectrum_x + 6).argmin(dim_fx).data])
+	cutoff_y_3db = 1. / abs(freq_y[np.abs(win_spectrum_y + 3).argmin(dim_fy).data])
+	cutoff_y_6db = 1. / abs(freq_y[np.abs(win_spectrum_y + 6).argmin(dim_fy).data])
 
-	fig = plt.figure(1, figsize=(16, 8))
+	#fig = plt.figure(1, figsize=(16, 8))
 	# Definitions for the axes
 	left, width = 0.05, 0.25
 	bottom, height = 0.05, 0.5
@@ -427,3 +392,33 @@ def _plot2d_window(win_array, win_spectrum_norm):
 	                       cmap=matplotlib.cm.Spectral_r)
 	ax_2D_spectrum.set_xscale('symlog', linthreshx=min_freq_y)
 	ax_2D_spectrum.set_yscale('symlog', linthreshy=min_freq_x)
+
+	
+def _convolve(dataarray, coeffs, dims, order, mode, weights, trim):
+		"""Convolve the current window with the data
+		"""
+		# Check if the kernel has more dimensions than the input data,
+		# if so the extra dimensions of the kernel are squeezed
+		squeezed_dims = [di for di in dims if di not in dataarray.dims]
+		new_coeffs = coeffs.squeeze(squeezed_dims)
+		new_coeffs /= new_coeffs.sum()
+		if trim:
+			mode = np.nan
+			mode_conv = 'constant'
+			new_data = dataarray.data
+		else:
+			new_data = dataarray.fillna(0.).data
+			if mode is 'periodic':
+				mode_conv = 'wrap'
+			else:
+				mode_conv = mode
+		boundary = {dataarray.get_axis_num(di): mode for di in dims}
+		depth = {dataarray.get_axis_num(di): order[di] // 2 for di in dims}
+		conv = lambda x: im.convolve(x, new_coeffs.data, mode=mode_conv)
+		data_conv = new_data.map_overlap(conv, depth=depth,
+		                                       boundary=boundary,
+		                                       trim=True)
+		res = 1. / weights *  xr.DataArray(data_conv, dims=dataarray.dims,
+		                                              coords=dataarray.coords,
+		                                              name=dataarray.name)
+		return res

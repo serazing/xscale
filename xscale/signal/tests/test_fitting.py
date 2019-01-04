@@ -12,6 +12,7 @@ def test_polyfit():
 	truth = rand + slopes * rand.time
 	truth = truth.chunk(chunks={'time': 20, 'x': 50, 'y': 50})
 	linfit = xfit.polyfit(truth, dim='time').load()
+	xfit.polyfit(truth.to_dataset(name='truth'), dim='time').load()
 	assert np.allclose(linfit.sel(degree=1).mean(dim='y').data, slopes.data,
 	                   rtol=5e-2, atol=1e-3)
 
@@ -21,9 +22,10 @@ def test_linreg():
 	slopes = 0.02 * xr.DataArray(np.cos(2 * np.pi * offset.x / nx), dims=['x'])
 	truth = offset + slopes * offset.time
 	truth = truth.chunk(chunks={'time': 20, 'x': 50, 'y': 50})
-	linfit = xfit.linreg(truth, dim='time').mean(dim='y')
-	assert np.allclose(slopes, linfit['slope'].load())
-	assert np.allclose(offset, linfit['offset'].load())
+	xfit.polyfit(truth.to_dataset(name='truth'), dim='time').load()
+	slopes_fitted, offsets_fitted = xfit.linreg(truth, dim='time')
+	assert np.allclose(slopes, slopes_fitted.mean(dim='y').load())
+	assert np.allclose(offset, offsets_fitted.mean(dim='y').load())
 
 def test_trend():
 	nt, nx, ny = 100, 128, 128

@@ -5,6 +5,8 @@ dist/
 *.log
 .coverage
 
+.ipynb_checkpoints/
+
 *.swp
 
 # Documentation
